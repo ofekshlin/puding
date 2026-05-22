@@ -53,13 +53,23 @@ The development of Project Puding is divided into sequential, numbered phases to
 ### Phase 1: Core Voice Infrastructure & WebSocket Bridge
 Focuses on establishing the real-time full-duplex communication pipelines.
 
-* [ ] **1. Backend Initialize:** Set up a Node.js TypeScript environment and install dependencies (`@google/genai`, `ws`, `dotenv`).
-* [ ] **2. WebSocket Relay Setup:** Implement a local WebSocket server on the backend to accept incoming client connections and proxy them securely to `ai.live.connect` on Google's infrastructure.
-* [ ] **3. Frontend Micro-Recorder:** Build a client-side audio recording module using the browser's `Navigator.mediaDevices` and `AudioContext`.
-* [ ] **4. Audio Downsampling Line:** Implement client-side PCM 16-bit Little-Endian chunk conversion at a 16kHz sampling rate to match Gemini's exact ingestion requirement.
-* [ ] **5. Base64 Audio Pipeline:** Stream the raw audio blocks wrapped in Base64 encoding over the WebSocket to the backend.
-* [ ] **6. Audio Output Streamer:** Develop a frontend audio queue to ingest incoming 24kHz PCM chunks from the backend and play them sequentially without audible stutter.
-* [ ] **7. Barge-In (Interruption Listener):** Connect to Gemini's server-side audio interruption signals; program the frontend to instantly flush the audio buffer and stop speaker playback when triggered.
+#### Stage 1.1: Infrastructure & Backend Relay
+* [ ] **1. Monorepo Scaffolding:** Initialize `apps/server`, `apps/web`, and `packages/tsconfig`. Configure `pnpm-workspace.yaml` and `turbo.json`.
+* [ ] **2. Backend Setup:** Initialize Node.js TypeScript environment in `apps/server` with `ws` and `@google/generative-ai`.
+* [ ] **3. WebSocket Proxy:** Implement a server that accepts client connections and establishes a secure `live.connect` session with Gemini.
+* [ ] **4. Connectivity Test:** Verify that the server can send/receive a handshake with the Gemini Live API.
+
+#### Stage 1.2: Frontend Audio Capture
+* [ ] **5. Next.js PWA Boilerplate:** Setup `apps/web` with TypeScript and basic PWA configuration.
+* [ ] **6. Micro-Recorder Module:** Implement client-side audio capture using `Navigator.mediaDevices`.
+* [ ] **7. Downsampling Pipeline:** Build the `AudioWorklet` or `Processor` to convert audio to 16kHz 16-bit LE PCM.
+* [ ] **8. Streaming Bridge:** Connect the frontend to the backend WebSocket and stream Base64-encoded PCM chunks.
+
+#### Stage 1.3: Audio Playback & Interruption
+* [ ] **9. Audio Output Streamer:** Implement a playback queue for incoming 24kHz PCM chunks from Gemini.
+* [ ] **10. Gapless Playback Engine:** Ensure smooth audio delivery using the Web Audio API.
+* [ ] **11. Interruption (Barge-In) Logic:** Listen for Gemini's interruption signals; flush the frontend audio buffer immediately when user input is detected.
+* [ ] **12. Latency Audit:** Measure and optimize the round-trip time to ensure it remains < 500ms.
 
 ### Phase 2: Central Interface & State Management
 Focuses on building the interactive user interface and immediate context tracking.
