@@ -53,50 +53,50 @@ The development of Project Puding is divided into sequential, numbered phases to
 ### Phase 1: Core Voice Infrastructure & WebSocket Bridge
 Focuses on establishing the real-time full-duplex communication pipelines.
 
-1. **Backend Initialize:** Set up a Node.js TypeScript environment and install dependencies (`@google/genai`, `ws`, `dotenv`).
-2. **WebSocket Relay Setup:** Implement a local WebSocket server on the backend to accept incoming client connections and proxy them securely to `ai.live.connect` on Google's infrastructure.
-3. **Frontend Micro-Recorder:** Build a client-side audio recording module using the browser's `Navigator.mediaDevices` and `AudioContext`.
-4. **Audio Downsampling Line:** Implement client-side PCM 16-bit Little-Endian chunk conversion at a 16kHz sampling rate to match Gemini's exact ingestion requirement.
-5. **Base64 Audio Pipeline:** Stream the raw audio blocks wrapped in Base64 encoding over the WebSocket to the backend.
-6. **Audio Output Streamer:** Develop a frontend audio queue to ingest incoming 24kHz PCM chunks from the backend and play them sequentially without audible stutter.
-7. **Barge-In (Interruption Listener):** Connect to Gemini's server-side audio interruption signals; program the frontend to instantly flush the audio buffer and stop speaker playback when triggered.
+* [ ] **1. Backend Initialize:** Set up a Node.js TypeScript environment and install dependencies (`@google/genai`, `ws`, `dotenv`).
+* [ ] **2. WebSocket Relay Setup:** Implement a local WebSocket server on the backend to accept incoming client connections and proxy them securely to `ai.live.connect` on Google's infrastructure.
+* [ ] **3. Frontend Micro-Recorder:** Build a client-side audio recording module using the browser's `Navigator.mediaDevices` and `AudioContext`.
+* [ ] **4. Audio Downsampling Line:** Implement client-side PCM 16-bit Little-Endian chunk conversion at a 16kHz sampling rate to match Gemini's exact ingestion requirement.
+* [ ] **5. Base64 Audio Pipeline:** Stream the raw audio blocks wrapped in Base64 encoding over the WebSocket to the backend.
+* [ ] **6. Audio Output Streamer:** Develop a frontend audio queue to ingest incoming 24kHz PCM chunks from the backend and play them sequentially without audible stutter.
+* [ ] **7. Barge-In (Interruption Listener):** Connect to Gemini's server-side audio interruption signals; program the frontend to instantly flush the audio buffer and stop speaker playback when triggered.
 
 ### Phase 2: Central Interface & State Management
 Focuses on building the interactive user interface and immediate context tracking.
 
-8. **PWA Manifest Configuration:** Configure `manifest.json`, service workers, and iOS/Android asset parameters to make the app installable.
-9. **The "Orb" UI Component:** Create an interactive, animated graphical element representing Puding’s current state (Gray = Sleeping/Thinking, Blue = Listening, Purple/Green Gradient Wave = Speaking).
-10. **Session State Tracker:** Create an ephemeral database or in-memory session object on the backend to manage current session IDs, token lengths, and active websocket statuses.
+* [ ] **8. PWA Manifest Configuration:** Configure `manifest.json`, service workers, and iOS/Android asset parameters to make the app installable.
+* [ ] **9. The "Orb" UI Component:** Create an interactive, animated graphical element representing Puding’s current state (Gray = Sleeping/Thinking, Blue = Listening, Purple/Green Gradient Wave = Speaking).
+* [ ] **10. Session State Tracker:** Create an ephemeral database or in-memory session object on the backend to manage current session IDs, token lengths, and active websocket statuses.
 
 ### Phase 3: Semantic Long-Term Memory (RAG Integration)
 Focuses on making Puding recall facts across completely separate conversation instances.
 
-11. **Vector DB Provisioning:** Deploy a PostgreSQL instance with the `pgvector` extension enabled, or provision a Pinecone vector index.
-12. **Asynchronous Conversation Summarizer:** Write a background worker that triggers when a user session disconnects, summarizing key facts about the user (e.g., identity, preferences, ongoing tasks).
-13. **Embedding Generation Engine:** Connect the summary engine to text embedding APIs to transform text insights into high-dimensional vectors.
-14. **Context Injection Pipeline:** Develop a pre-session retrieval function that queries the Vector DB during initialization and appends historical data directly into Puding's initial system prompt.
+* [ ] **11. Vector DB Provisioning:** Deploy a PostgreSQL instance with the `pgvector` extension enabled, or provision a Pinecone vector index.
+* [ ] **12. Asynchronous Conversation Summarizer:** Write a background worker that triggers when a user session disconnects, summarizing key facts about the user (e.g., identity, preferences, ongoing tasks).
+* [ ] **13. Embedding Generation Engine:** Connect the summary engine to text embedding APIs to transform text insights into high-dimensional vectors.
+* [ ] **14. Context Injection Pipeline:** Develop a pre-session retrieval function that queries the Vector DB during initialization and appends historical data directly into Puding's initial system prompt.
 
 ### Phase 4: Function Calling & Google Search Integration
 Empowers Puding to autonomously fetch real-time facts from the live internet.
 
-15. **Function Calling Declaration:** Register a structured tool configuration Schema for `search_google(query: string)` inside the Gemini Live API initializer.
-16. **Serper / Tavily API Client:** Integrate a dedicated web-scraping/search API on the Node.js backend.
-17. **Tool Execution Loop:** Implement the backend interceptor: when Gemini stops speaking and sends a `toolCall` payload, parse the JSON, execute the search API, and stream the text results back as a `toolResponse`.
+* [ ] **15. Function Calling Declaration:** Register a structured tool configuration Schema for `search_google(query: string)` inside the Gemini Live API initializer.
+* [ ] **16. Serper / Tavily API Client:** Integrate a dedicated web-scraping/search API on the Node.js backend.
+* [ ] **17. Tool Execution Loop:** Implement the backend interceptor: when Gemini stops speaking and sends a `toolCall` payload, parse the JSON, execute the search API, and stream the text results back as a `toolResponse`.
 
 ### Phase 5: Spotify Media Control Integration
 Enables Puding to manage music playback and query song metadata.
 
-18. **Spotify Developer Portal Setup:** Register Project Puding in the Spotify Developer Dashboard to acquire a `Client ID` and `Client Secret`.
-19. **OAuth2 Authentication Flow:** Implement a secure authorization route allowing the user to log in via Spotify once and securely store the `Access Token` and `Refresh Token`.
-20. **Spotify Tool Schema:** Declare function schemas for `play_music(genre_or_artist: string)`, `pause_music()`, and `get_current_track()`.
-21. **Web API Execution:** Code the backend wrappers using the official Spotify Web API endpoints to programmatically control active playback devices.
+* [ ] **18. Spotify Developer Portal Setup:** Register Project Puding in the Spotify Developer Dashboard to acquire a `Client ID` and `Client Secret`.
+* [ ] **19. OAuth2 Authentication Flow:** Implement a secure authorization route allowing the user to log in via Spotify once and securely store the `Access Token` and `Refresh Token`.
+* [ ] **20. Spotify Tool Schema:** Declare function schemas for `play_music(genre_or_artist: string)`, `pause_music()`, and `get_current_track()`.
+* [ ] **21. Web API Execution:** Code the backend wrappers using the official Spotify Web API endpoints to programmatically control active playback devices.
 
 ### Phase 6: Notion Documentation & Knowledge Management
 Allows Puding to write structured notes, logs, and brain-dumps into a Notion Workspace.
 
-22. **Notion Integration Provisioning:** Generate an Internal Integration Token within the Notion Developer settings and share a designated master database with the integration.
-23. **Notion Tool Schema:** Create schemas for `create_notion_page(title: string, content: string)` and `append_to_log(text: string)`.
-24. **Notion SDK Client:** Build backend methods using `@notionhq/client` to dynamically generate pages, block components, and bulleted lists on your personal workspace based on verbal summaries.
+* [ ] **22. Notion Integration Provisioning:** Generate an Internal Integration Token within the Notion Developer settings and share a designated master database with the integration.
+* [ ] **23. Notion Tool Schema:** Create schemas for `create_notion_page(title: string, content: string)` and `append_to_log(text: string)`.
+* [ ] **24. Notion SDK Client:** Build backend methods using `@notionhq/client` to dynamically generate pages, block components, and bulleted lists on your personal workspace based on verbal summaries.
 
 ---
 
