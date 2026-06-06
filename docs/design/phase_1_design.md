@@ -68,7 +68,7 @@ The server acts as an orchestrator and security barrier. It keeps the Google Gem
       {
         "type": "setup",
         "config": {
-          "model": "models/gemini-2.0-flash-exp",
+          "model": "models/gemini-3.1-flash-live-preview",
           "generationConfig": {
             "responseModalities": ["AUDIO"],
             "speechConfig": {
@@ -110,7 +110,7 @@ The server acts as an orchestrator and security barrier. It keeps the Google Gem
        ```json
        {
          "setup": {
-           "model": "models/gemini-2.0-flash-exp",
+           "model": "models/gemini-3.1-flash-live-preview",
            "generationConfig": {
              "responseModalities": ["AUDIO"]
            }

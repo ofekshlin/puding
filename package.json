@@ -1,6 +1,7 @@
 {
   "name": "puding",
   "private": true,
+  "packageManager": "pnpm@11.2.2",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "build": "turbo run build",
