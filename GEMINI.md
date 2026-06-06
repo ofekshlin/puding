@@ -33,6 +33,7 @@ Project **Puding** is an ultra-low-latency, stateful, multimodal AI Agent (Jarvi
 - **Strict Typing:** Mandatory TypeScript across all packages and apps.
 - **Shared Configs:** Extend base configurations from `packages/tsconfig`.
 - **Functional Cleanliness:** Prefer composition and modular tool definitions for Function Calling.
+- **Clean Code & SOLID:** Adhere to clean code practices and SOLID principles adapted for functional TypeScript (Single Responsibility, composition over inheritance, interface-driven design, and dependency inversion).
 - **Barge-In Handling:** The system must immediately stop audio output upon user input detection.
 
 ## Implementation Roadmap
