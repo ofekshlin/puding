@@ -1,0 +1,148 @@
+---
+name: implement
+description: Implement a single stage from a plan file. Usage: /implement <stage_number_or_name> [plan_file_path]
+---
+
+You are implementing a single stage from a project plan file.
+
+## Your Input
+Arguments provided: {{args}}
+
+The first argument is the **stage identifier** (a number like `3` or a name like `database-migration`).
+The second argument (optional) is the **path to the plan file**.
+
+## Step 0: Locate the Plan File
+
+Determine which plan file to use, in this priority order:
+
+1. **Explicit argument**: If a second argument was provided above, use that file path.
+2. **Configured default**: Check if `.gemini/GEMINI.md` contains a `Plan File` or `Current Plan` entry (look for a line like `**Plan File**: path/to/plan.md` or `Current Plan: path/to/plan.md`). If found, use that path.
+3. **Auto-detect**: Search the project root for markdown files with plan-related names. Look for files matching patterns like `*plan*`, `*Plan*`, `*roadmap*`, `*implementation*`, `*stages*` (case-insensitive) in the project root directory.
+   If exactly one match is found, use it. If multiple are found, list them and STOP — ask the user which one to use.
+4. **Not found**: If no plan file can be located, STOP and report:
+   > "No plan file found. Please either pass the path as a second argument (`/implement <stage> path/to/plan.md`) or set a default in `.gemini/GEMINI.md` with `**Plan File**: path/to/plan.md`."
+
+Read the plan file and confirm you found the target stage before proceeding.
+
+## CRITICAL RULES — READ BEFORE DOING ANYTHING
+
+1. **ONE STAGE ONLY.** You MUST implement ONLY the requested stage — nothing more. Do NOT start, scaffold, or touch any code belonging to other stages. If a task feels like it belongs to a different stage, STOP and skip it.
+2. **Follow the plan exactly.** Read the full stage description and implement every task listed under that stage.
+3. **Follow all project rules.** If `.gemini/GEMINI.md` exists, read it and follow all coding standards, conventions, and constraints defined there.
+4. **Do NOT proceed to the next stage** after completion. Your work is done after opening the PR.
+
+## Git Workflow — Follow This Exactly
+
+### Step 1: Verify clean working tree
+Run:
+```
+git status
+```
+If there are uncommitted changes, STOP and ask the user to commit or stash them first.
+
+### Step 2: Determine the current branch
+Run:
+```
+git branch --show-current
+```
+Save this as the **BASE_BRANCH**. This is the branch your PR will target.
+
+### Step 3: Create a feature branch
+Check if `.gemini/GEMINI.md` contains a `Branch Format` entry (e.g., `**Branch Format**: dev/<identifier>-<short-description>`). If found, use that format. Otherwise, use the default format.
+
+Default branch naming format: `feature/stage-<identifier>-<short-description>`
+
+Examples:
+- Numeric stage: `feature/stage-3-hero-section`
+- Named stage: `feature/stage-database-migration`
+
+Run:
+```
+git checkout -b feature/stage-<identifier>-<short-description>
+```
+
+### Step 4: Implement the stage
+- Read the full stage description from the plan file
+- Implement ALL tasks listed in that stage
+- Follow `.gemini/GEMINI.md` rules strictly (if the file exists)
+- Reference any design documents, mockups, or guidelines mentioned in the plan
+
+### Step 5: Verify the build
+Auto-detect the project's build system and run the appropriate build/check command:
+
+| File Found | Build Command |
+|-----------|--------------|
+| `package.json` (with `build` script) | `npm run build` |
+| `package.json` (with `tsc` in devDeps) | `npx tsc --noEmit` |
+| `Cargo.toml` | `cargo build` |
+| `go.mod` | `go build ./...` |
+| `pyproject.toml` | `python -m py_compile` on changed files |
+| `Makefile` | `make build` or `make check` |
+| `pom.xml` | `mvn compile` |
+| `build.gradle` / `build.gradle.kts` | `./gradlew build` |
+
+If the project has a custom build command documented in `.gemini/GEMINI.md` (look for a `Build Command` entry), use that instead.
+
+If no build system is detected, skip this step but note it in the PR description.
+
+Fix any build errors before proceeding to the next step.
+
+### Step 6: Commit your changes
+Write a clear, descriptive commit message using conventional commits format:
+```
+git add -A
+```
+```
+git commit -m "feat: implement stage <identifier> - <brief description>"
+```
+
+Conventional commit prefixes:
+- `feat:` for new features
+- `fix:` for bug fixes
+- `refactor:` for refactoring
+- `style:` for styling changes
+- `docs:` for documentation changes
+- `chore:` for maintenance tasks
+
+### Step 7: Push the branch
+```
+git push -u origin <branch-name>
+```
+
+### Step 8: Create a Pull Request using GitHub CLI (`gh`)
+```
+gh pr create --base <BASE_BRANCH> --title "feat: Stage <identifier> — <Stage Title>" --body "<PR body>"
+```
+
+The PR body MUST include:
+- **Summary**: What this stage implements (quote or reference the plan)
+- **Changes**: Bullet list of files created/modified
+- **Stage Reference**: Which stage from which plan file this implements
+- **Build Verification**: Whether the build passed and how to verify
+- **Testing**: How to verify the changes (e.g., `npm run dev` and check specific components)
+
+### Step 9: Update progress in the plan file
+After the PR is created, update the plan file to reflect progress:
+
+- If the stage heading uses markers like `[ ]`, update it to `[x]` or mark it with ✅
+- If the stage heading has no markers, prepend `✅` or `~~strikethrough~~` to indicate completion
+- If the plan file has a progress section, update it accordingly
+
+Commit and push this progress update:
+```
+git add <plan-file>
+git commit -m "docs: mark stage <identifier> as completed"
+git push
+```
+
+**Note**: If the plan file format doesn't support progress markers or you're unsure how to update it, skip this step and mention it in the completion report.
+
+## After Completion
+Once the PR is created, report:
+1. ✅ The PR URL
+2. 📋 A summary of what was implemented
+3. 📝 Which plan file and stage was referenced
+4. ⚠️ Any issues, deviations from the plan, or skipped tasks (with reasons)
+5. 🔄 Whether progress was updated in the plan file
+
+**DO NOT proceed to any other stage. Your work is DONE after opening the PR.**
