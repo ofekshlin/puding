@@ -33,6 +33,8 @@ Project **Puding** is an ultra-low-latency, stateful, multimodal AI Agent (Jarvi
 - **Strict Typing:** Mandatory TypeScript across all packages and apps.
 - **Shared Configs:** Extend base configurations from `packages/tsconfig`.
 - **OOP & SOLID Principles:** Enforce strict Object-Oriented Programming (OOP) and SOLID principles. Encapsulate domain logic within NestJS Modules, Services, and Gateways, using dependency injection for composition.
+  - *Dependency Inversion Principle (DIP):* High-level modules (such as Gateways/Controllers) must not depend on low-level modules (such as specific API client implementations). Both must depend on abstractions (interfaces or abstract classes).
+  - *Abstraction using NestJS Injection Tokens:* Define runtime-persistent abstract classes to serve as NestJS dependency injection tokens. Subclasses implementing these abstractions can then be mapped via custom providers (e.g., `useClass`) in NestJS modules to decouple components across boundaries.
 - **Structured Logging:** Use the built-in NestJS `Logger` class for all logging. `console.log` is strictly forbidden.
 - **Barge-In Handling:** The system must immediately stop audio output upon user input detection.
 

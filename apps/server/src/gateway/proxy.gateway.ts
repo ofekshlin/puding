@@ -5,20 +5,19 @@ import {
 } from "@nestjs/websockets";
 import WebSocket from "ws";
 import { IncomingMessage } from "http";
-import { GeminiService } from "../gemini/gemini.service";
-import { GeminiSession } from "../gemini/gemini.session";
-import { Logger, Inject } from "@nestjs/common";
+import { LiveSessionService, LiveSession } from "../session/live-session.service";
+import { Logger } from "@nestjs/common";
 import { ClientMessage } from "../types";
 import { randomUUID } from "crypto";
 
 @WebSocketGateway({ path: "/" })
 export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(ProxyGateway.name);
-  private readonly sessions = new Map<WebSocket, GeminiSession>();
+  private readonly sessions = new Map<WebSocket, LiveSession>();
   private readonly apiKey: string;
 
   constructor(
-    @Inject(GeminiService) private readonly geminiService: GeminiService,
+    private readonly liveSessionService: LiveSessionService,
   ) {
     this.apiKey = process.env.GEMINI_API_KEY || "";
     if (!this.apiKey) {
@@ -40,7 +39,7 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
-    const session = this.geminiService.createSession(client, this.apiKey, sessionId);
+    const session = this.liveSessionService.createSession(client, this.apiKey, sessionId);
     this.sessions.set(client, session);
 
     // Bind event listener directly to socket to support raw PCM binary streaming

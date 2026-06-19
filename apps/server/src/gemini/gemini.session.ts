@@ -6,8 +6,9 @@ import {
   GeminiServerMessage,
   ServerMessage,
 } from "../types";
+import { LiveSession } from "../session/live-session.interface";
 
-export class GeminiSession {
+export class GeminiSession implements LiveSession {
   private readonly logger: Logger;
   private readonly geminiWs: WebSocket;
   private isGeminiReady = false;
