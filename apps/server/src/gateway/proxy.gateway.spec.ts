@@ -1,16 +1,16 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { WsAdapter } from "@nestjs/platform-ws";
 import { ProxyGateway } from "./proxy.gateway";
 import { LiveSessionService, LiveSession } from "../session/live-session.service";
 import { ConfigService } from "../config/config.service";
 import WebSocket from "ws";
-import { ClientMessage } from "../types";
+import { EventEmitter } from "events";
+import { IncomingMessage } from "http";
 
-describe("ProxyGateway (Integration)", () => {
-  let app: any;
+describe("ProxyGateway (Unit)", () => {
+  let gateway: ProxyGateway;
   let mockLiveSessionService: jest.Mocked<LiveSessionService>;
   let mockLiveSession: jest.Mocked<LiveSession>;
-  let serverPort: number;
+  let mockConfigService: jest.Mocked<ConfigService>;
 
   beforeEach(async () => {
     mockLiveSession = {
@@ -24,12 +24,12 @@ describe("ProxyGateway (Integration)", () => {
       createSession: jest.fn().mockReturnValue(mockLiveSession),
     } as any;
 
-    const mockConfigService = {
-      getGeminiApiKey: jest.fn().mockReturnValue("mock-api-key"),
-      getPort: jest.fn().mockReturnValue(0),
-    };
+    mockConfigService = {
+      getGeminiApiKey: jest.fn().mockReturnValue("test-api-key"),
+      getPort: jest.fn().mockReturnValue(3001),
+    } as any;
 
-    const moduleFixture: TestingModule = await Test.createTestingModule({
+    const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProxyGateway,
         {
@@ -43,70 +43,103 @@ describe("ProxyGateway (Integration)", () => {
       ],
     }).compile();
 
-    app = moduleFixture.createNestApplication();
-    app.useWebSocketAdapter(new WsAdapter(app));
-    await app.init();
-
-    // Bind to a dynamic port allocated by the OS (port 0)
-    const httpServer = await app.listen(0);
-    serverPort = httpServer.address().port;
+    gateway = module.get<ProxyGateway>(ProxyGateway);
   });
 
-  afterEach(async () => {
-    await app.close();
+  it("should create a session on connection", () => {
+    const mockSocket = new EventEmitter() as any;
+    mockSocket.close = jest.fn();
+    const mockReq = {
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+
+    gateway.handleConnection(mockSocket, mockReq);
+
+    expect(mockConfigService.getGeminiApiKey).toHaveBeenCalled();
+    expect(mockLiveSessionService.createSession).toHaveBeenCalledWith(
+      mockSocket,
+      "test-api-key",
+      expect.any(String),
+    );
   });
 
-  it("should establish connection, perform setup, and relay client messages", (done) => {
-    const ws = new WebSocket(`ws://localhost:${serverPort}`);
+  it("should reject connection if API key is missing", () => {
+    mockConfigService.getGeminiApiKey.mockReturnValueOnce("");
+    const mockSocket = new EventEmitter() as any;
+    mockSocket.close = jest.fn();
+    const mockReq = {
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
 
-    ws.on("open", () => {
-      // 1. Send Setup Config message
-      const setupMsg: ClientMessage = {
-        type: "setup",
-        config: {
-          model: "models/gemini-3.1-flash-live-preview",
-          systemInstruction: "You are a helpful assistant.",
-        },
-      };
-      ws.send(JSON.stringify(setupMsg));
+    gateway.handleConnection(mockSocket, mockReq);
 
-      // Wait briefly for WS message delivery and verify mocks
-      setTimeout(() => {
-        expect(mockLiveSessionService.createSession).toHaveBeenCalled();
-        expect(mockLiveSession.sendSetup).toHaveBeenCalledWith(setupMsg.config);
+    expect(mockSocket.close).toHaveBeenCalledWith(1011, expect.any(String));
+    expect(mockLiveSessionService.createSession).not.toHaveBeenCalled();
+  });
 
-        // 2. Send client text content
-        const textMsg: ClientMessage = {
-          type: "client_content",
-          content: {
-            turns: [{ role: "user", parts: [{ text: "Hello!" }] }],
-          },
-        };
-        ws.send(JSON.stringify(textMsg));
+  it("should relay setup message", () => {
+    const mockSocket = new EventEmitter() as any;
+    const mockReq = {
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
 
-        setTimeout(() => {
-          expect(mockLiveSession.sendClientContent).toHaveBeenCalledWith(textMsg.content);
+    gateway.handleConnection(mockSocket, mockReq);
 
-          // 3. Send binary audio data
-          const dummyAudio = Buffer.alloc(100);
-          ws.send(dummyAudio);
-
-          setTimeout(() => {
-            expect(mockLiveSession.sendAudio).toHaveBeenCalled();
-            ws.close();
-          }, 100);
-        }, 100);
-      }, 100);
+    const setupPayload = JSON.stringify({
+      type: "setup",
+      config: { model: "test-model" },
     });
 
-    ws.on("close", () => {
-      // 4. Verify that the session is destroyed on disconnect
-      expect(mockLiveSession.destroy).toHaveBeenCalled();
-      done();
+    // Simulate receiving a setup text message
+    mockSocket.emit("message", Buffer.from(setupPayload), false);
+
+    expect(mockLiveSession.sendSetup).toHaveBeenCalledWith({ model: "test-model" });
+  });
+
+  it("should relay client content message", () => {
+    const mockSocket = new EventEmitter() as any;
+    const mockReq = {
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+
+    gateway.handleConnection(mockSocket, mockReq);
+
+    const contentPayload = JSON.stringify({
+      type: "client_content",
+      content: { turns: [] },
     });
 
-    ws.on("error", (error) => {
-      done(error);
-    });
+    // Simulate receiving a client_content text message
+    mockSocket.emit("message", Buffer.from(contentPayload), false);
+
+    expect(mockLiveSession.sendClientContent).toHaveBeenCalledWith({ turns: [] });
+  });
+
+  it("should relay raw binary audio data", () => {
+    const mockSocket = new EventEmitter() as any;
+    const mockReq = {
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+
+    gateway.handleConnection(mockSocket, mockReq);
+
+    const dummyAudio = Buffer.alloc(100);
+
+    // Simulate receiving raw binary audio
+    mockSocket.emit("message", dummyAudio, true);
+
+    expect(mockLiveSession.sendAudio).toHaveBeenCalledWith(dummyAudio);
+  });
+
+  it("should destroy session and clean up on disconnect", () => {
+    const mockSocket = new EventEmitter() as any;
+    const mockReq = {
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+
+    gateway.handleConnection(mockSocket, mockReq);
+    gateway.handleDisconnect(mockSocket);
+
+    expect(mockLiveSession.destroy).toHaveBeenCalled();
   });
 });
