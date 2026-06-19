@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
-
 :root {
   --bg-color: #07070a;
   --panel-bg: rgba(15, 15, 22, 0.65);
@@ -12,7 +10,7 @@
   --color-success: #10b981; /* Emerald */
   --color-danger: #ef4444; /* Rose */
   --color-danger-hover: #dc2626;
-  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 * {
