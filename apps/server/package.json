@@ -6,6 +6,8 @@
     "dev": "tsx watch src/main.ts",
     "build": "tsc",
     "start": "node dist/main.js",
+    "test": "jest",
+    "test:cov": "jest --coverage",
     "test:connection": "tsx src/test-connection.ts"
   },
   "dependencies": {
@@ -21,10 +23,33 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@nestjs/testing": "^11.1.27",
     "@puding/tsconfig": "workspace:*",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.11.24",
+    "@types/supertest": "^7.2.0",
     "@types/ws": "^8.5.10",
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.11",
     "tsx": "^4.7.1",
     "typescript": "^5.3.3"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
   }
 }
