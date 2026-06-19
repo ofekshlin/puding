@@ -37,6 +37,12 @@ Project **Puding** is an ultra-low-latency, stateful, multimodal AI Agent (Jarvi
   - *Abstraction using NestJS Injection Tokens:* Define runtime-persistent abstract classes to serve as NestJS dependency injection tokens. Subclasses implementing these abstractions can then be mapped via custom providers (e.g., `useClass`) in NestJS modules to decouple components across boundaries.
 - **Structured Logging:** Use the built-in NestJS `Logger` class for all logging. `console.log` is strictly forbidden.
 - **Barge-In Handling:** The system must immediately stop audio output upon user input detection.
+- **React & Frontend Best Practices:**
+  - *Separation of Concerns:* Decouple presentational UI components from state management, APIs, and stream connections. Put session orchestration, audio graphs, and side-effects in custom React hooks (e.g., `useLiveSession`, `useAudioRecorder`).
+  - *Component Modularity:* Avoid giant page files or nested visual templates. Split views into highly cohesive, single-responsibility components with strict TypeScript prop definitions.
+  - *Resource Cleanup:* Explicitly close, stop, and clean up active resources (WebSockets, Web Audio context, mic streams/media tracks) inside hooks or `useEffect` cleanup return functions to prevent memory leaks and background resource drain.
+  - *State & Render Optimization:* Memoize callbacks with `useCallback` when passed as props to subcomponents, and store non-rendering mutable session structures in `useRef` to eliminate redundant component lifecycle runs.
+  - *Clean Styling:* Isolate visual layout rules to stylesheets (e.g., `globals.css` or CSS modules) using semantic CSS custom properties (variables) rather than inline JSX style definitions.
 
 ## Implementation Roadmap
 

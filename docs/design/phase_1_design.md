@@ -171,19 +171,35 @@ To achieve gapless audio playback and immediate interruption:
 
 ## 4. Stage-by-Stage Implementation Tasks
 
-### Stage 1.1: Infrastructure & Backend Relay (Current Stage)
-1. Set up the `packages/tsconfig` with the base TS configurations.
-2. Initialize `apps/server` with TS, `ws`, `dotenv`, and developer packages.
-3. Scaffold `apps/web` Next.js template and verify Turborepo integration.
-4. Implement `apps/server/src/index.ts` containing the WebSocket relay server.
-5. Create a standalone test client script `apps/server/src/test-connection.ts` that connects to the proxy, performs the handshake, sends a dummy audio packet, and verifies that Gemini replies with connection acknowledgment and response data.
+### Stage 1.2: Frontend Audio Capture (Current Stage)
+1. Add `manifest.json` and basic PWA setup (viewport, theme settings) in `apps/web/public/manifest.json`.
+2. Implement global CSS file `apps/web/src/app/globals.css` featuring premium dark-mode styling, Outfit/Inter typography, and subtle micro-animations for interactive elements.
+3. Implement `apps/web/public/workers/audio-processor.js` to run in the audio thread, accumulate float samples, downsample them from the source rate to 16kHz, and forward them back to the main thread.
+4. Implement `apps/web/src/hooks/useAudioRecorder.ts` to capture microphone inputs, convert float samples to 16-bit LE PCM binary buffers, and provide start/stop hooks.
+5. Create the web app landing page `apps/web/src/app/page.tsx` to handle WebSocket state, setup handshake, audio recording triggers, and clean visual indicators.
+
+---
+
+### Stage 1.3: Audio Playback & Interruption (Upcoming Stage)
+1. Implement the `apps/web/src/hooks/useAudioPlayer.ts` player hook.
+2. Queue incoming 24kHz audio chunks and decode them back-to-back into `Float32` arrays.
+3. Manage gapless scheduling on the `AudioContext` timeline.
+4. Listen for backend interruption events and immediately halt/flush active playback.
 
 ---
 
 ## 5. Success Criteria & Verification
 
+### Stage 1.1
 - [x] **Monorepo setup**: Running `pnpm build` at root builds all packages successfully.
 - [x] **Relay connection**: Server connects to `generativelanguage.googleapis.com` Live API WebSocket.
 - [x] **Handshake verification**: Standard test client receives a `setup_complete` type message.
 - [x] **Data transmission**: Sending PCM-structured messages results in a clean response from Gemini.
+
+### Stage 1.2
+- [x] **TypeScript Build**: `pnpm build` completes successfully without compilation errors.
+- [x] **PWA Baseline**: Web manifest loads properly and viewport is optimized for mobile display.
+- [x] **Downsampling Fidelity**: Audio capture downsamples microphone input to 16kHz LE PCM buffer.
+- [x] **Realtime Streaming**: Binary PCM audio streams successfully to the backend proxy WebSocket and is forwarded to Gemini without errors.
+- [x] **Visual Feedback**: Sleek interactive interface displaying real-time connection status and active mic input level.
 
