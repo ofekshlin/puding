@@ -54,10 +54,10 @@ The development of Project Puding is divided into sequential, numbered phases to
 Focuses on establishing the real-time full-duplex communication pipelines.
 
 #### Stage 1.1: Infrastructure & Backend Relay
-* [ ] **1. Monorepo Scaffolding:** Initialize `apps/server`, `apps/web`, and `packages/tsconfig`. Configure `pnpm-workspace.yaml` and `turbo.json`.
-* [ ] **2. Backend Setup:** Initialize Node.js TypeScript environment in `apps/server` with `ws` and `@google/generative-ai`.
-* [ ] **3. WebSocket Proxy:** Implement a server that accepts client connections and establishes a secure `live.connect` session with Gemini.
-* [ ] **4. Connectivity Test:** Verify that the server can send/receive a handshake with the Gemini Live API.
+* [x] **1. Monorepo Scaffolding:** Initialize `apps/server`, `apps/web`, and `packages/tsconfig`. Configure `pnpm-workspace.yaml` and `turbo.json`.
+* [x] **2. Backend Setup:** Initialize Node.js TypeScript environment in `apps/server` with `ws` and `@google/generative-ai`.
+* [x] **3. WebSocket Proxy:** Implement a server that accepts client connections and establishes a secure `live.connect` session with Gemini.
+* [x] **4. Connectivity Test:** Verify that the server can send/receive a handshake with the Gemini Live API.
 
 #### Stage 1.2: Frontend Audio Capture
 * [ ] **5. Next.js PWA Boilerplate:** Setup `apps/web` with TypeScript and basic PWA configuration.

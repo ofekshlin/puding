@@ -25,15 +25,17 @@ Project **Puding** is an ultra-low-latency, stateful, multimodal AI Agent (Jarvi
 ### 4. Architecture
 - **Monorepo:** Standardized structure with `pnpm-workspace.yaml`.
 - **Frontend:** React / Next.js (TypeScript) configured as a PWA.
-- **Backend:** Node.js / TypeScript (Express or NestJS).
+- **Backend:** NestJS (TypeScript).
 - **Database:** PostgreSQL with `pgvector` for semantic memory.
 - **AI Integration:** Google Gemini 2.0 Flash via `ai.live.connect`.
 
 ### 5. Code Standards
 - **Strict Typing:** Mandatory TypeScript across all packages and apps.
 - **Shared Configs:** Extend base configurations from `packages/tsconfig`.
-- **Functional Cleanliness:** Prefer composition and modular tool definitions for Function Calling.
-- **Clean Code & SOLID:** Adhere to clean code practices and SOLID principles adapted for functional TypeScript (Single Responsibility, composition over inheritance, interface-driven design, and dependency inversion).
+- **OOP & SOLID Principles:** Enforce strict Object-Oriented Programming (OOP) and SOLID principles. Encapsulate domain logic within NestJS Modules, Services, and Gateways, using dependency injection for composition.
+  - *Dependency Inversion Principle (DIP):* High-level modules (such as Gateways/Controllers) must not depend on low-level modules (such as specific API client implementations). Both must depend on abstractions (interfaces or abstract classes).
+  - *Abstraction using NestJS Injection Tokens:* Define runtime-persistent abstract classes to serve as NestJS dependency injection tokens. Subclasses implementing these abstractions can then be mapped via custom providers (e.g., `useClass`) in NestJS modules to decouple components across boundaries.
+- **Structured Logging:** Use the built-in NestJS `Logger` class for all logging. `console.log` is strictly forbidden.
 - **Barge-In Handling:** The system must immediately stop audio output upon user input detection.
 
 ## Implementation Roadmap

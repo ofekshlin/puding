@@ -1,11 +1,13 @@
 {
   "name": "puding",
   "private": true,
+  "packageManager": "pnpm@11.2.2",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
+    "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
   "devDependencies": {
