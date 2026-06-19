@@ -60,10 +60,10 @@ Focuses on establishing the real-time full-duplex communication pipelines.
 * [x] **4. Connectivity Test:** Verify that the server can send/receive a handshake with the Gemini Live API.
 
 #### Stage 1.2: Frontend Audio Capture
-* [ ] **5. Next.js PWA Boilerplate:** Setup `apps/web` with TypeScript and basic PWA configuration.
-* [ ] **6. Micro-Recorder Module:** Implement client-side audio capture using `Navigator.mediaDevices`.
-* [ ] **7. Downsampling Pipeline:** Build the `AudioWorklet` or `Processor` to convert audio to 16kHz 16-bit LE PCM.
-* [ ] **8. Streaming Bridge:** Connect the frontend to the backend WebSocket and stream Base64-encoded PCM chunks.
+* [x] **5. Next.js PWA Boilerplate:** Setup `apps/web` with TypeScript and basic PWA configuration.
+* [x] **6. Micro-Recorder Module:** Implement client-side audio capture using `Navigator.mediaDevices`.
+* [x] **7. Downsampling Pipeline:** Build the `AudioWorklet` or `Processor` to convert audio to 16kHz 16-bit LE PCM.
+* [x] **8. Streaming Bridge:** Connect the frontend to the backend WebSocket and stream Base64-encoded PCM chunks.
 
 #### Stage 1.3: Audio Playback & Interruption
 * [ ] **9. Audio Output Streamer:** Implement a playback queue for incoming 24kHz PCM chunks from Gemini.
