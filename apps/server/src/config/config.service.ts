@@ -1,4 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
+import dotenv from "dotenv";
+import path from "path";
 
 @Injectable()
 export class ConfigService {
@@ -7,11 +9,15 @@ export class ConfigService {
   private readonly port: number;
 
   constructor() {
+    // Resolve absolute path to apps/server/.env
+    const envPath = path.resolve(__dirname, "../../.env");
+    dotenv.config({ path: envPath });
+
     this.geminiApiKey = process.env.GEMINI_API_KEY || "";
     this.port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
     if (!this.geminiApiKey) {
-      this.logger.error("CRITICAL CONFIGURATION ERROR: GEMINI_API_KEY is not defined in the environment variables.");
+      this.logger.error(`CRITICAL CONFIGURATION ERROR: GEMINI_API_KEY is not defined in the environment. Attempted loading from: ${envPath}`);
     }
   }
 

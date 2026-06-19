@@ -1,8 +1,9 @@
 import dotenv from "dotenv";
+import path from "path";
 import WebSocket from "ws";
 import { ClientMessage, ServerMessage } from "./types";
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const proxyUrl = `ws://localhost:${port}`;

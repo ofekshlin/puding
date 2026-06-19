@@ -7,7 +7,7 @@ import WebSocket from "ws";
 import { IncomingMessage } from "http";
 import { LiveSessionService, LiveSession } from "../session/live-session.service";
 import { ConfigService } from "../config/config.service";
-import { Logger } from "@nestjs/common";
+import { Logger, Inject } from "@nestjs/common";
 import { ClientMessage } from "../types";
 import { randomUUID } from "crypto";
 
@@ -17,8 +17,8 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly sessions = new Map<WebSocket, LiveSession>();
 
   constructor(
-    private readonly liveSessionService: LiveSessionService,
-    private readonly configService: ConfigService,
+    @Inject(LiveSessionService) private readonly liveSessionService: LiveSessionService,
+    @Inject(ConfigService) private readonly configService: ConfigService,
   ) {}
 
   /**
