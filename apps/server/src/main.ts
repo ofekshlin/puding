@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import { NestFactory } from "@nestjs/core";
 import { WsAdapter } from "@nestjs/platform-ws";
 import { AppModule } from "./app.module";
+import { ConfigService } from "./config/config.service";
 import { Logger } from "@nestjs/common";
 
 // Load environment configurations
@@ -15,7 +16,8 @@ async function bootstrap() {
   // Set the WsAdapter to support raw WebSocket server implementation
   app.useWebSocketAdapter(new WsAdapter(app));
 
-  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+  const configService = app.get(ConfigService);
+  const port = configService.getPort();
   await app.listen(port);
   
   logger.log(`Puding WebSocket Proxy running on port ${port}`);

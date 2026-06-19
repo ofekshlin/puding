@@ -17,12 +17,14 @@ Project Puding is structured as a TypeScript monorepo using **pnpm workspaces** 
 
 ## 2. Key Refactoring & SOLID Design Patterns
 
-Following best practices and SOLID design principles, we decoupled the core gateway logic from specific provider implementations:
+Following best practices and SOLID design principles, we decoupled the core gateway logic and environment configurations:
 
 1. **`LiveSession` (Interface)**: Represents a generic live session interface. Any model provider (Gemini Live, OpenAI Realtime, etc.) will implement this interface.
 2. **`LiveSessionService` (Abstract Class)**: Serves as a persistent injection token at runtime in the NestJS Dependency Injection container.
 3. **`GeminiService` & `GeminiSession` (Implementations)**: Concrete classes extending `LiveSessionService` and implementing `LiveSession`, registered dynamically via custom providers in `GeminiModule`.
 4. **`ProxyGateway` (Decoupled Client)**: Injects the abstract `LiveSessionService` rather than concrete Gemini classes, achieving complete dependency inversion (DIP).
+5. **`ConfigService` (Configuration Abstraction)**: Encapsulates all access to `process.env` configuration (such as API keys and port number) under `apps/server/src/config/`, avoiding direct environment lookups inside core gateway logic.
+6. **Agent Rules Location**: Project rules are managed in [.agents/AGENTS.md](file:///Users/ofekshlinger/Development/puding/.agents/AGENTS.md) in the agent customization root rather than a root-level `GEMINI.md`.
 
 ---
 
