@@ -66,10 +66,10 @@ Focuses on establishing the real-time full-duplex communication pipelines.
 * [x] **8. Streaming Bridge:** Connect the frontend to the backend WebSocket and stream Base64-encoded PCM chunks.
 
 #### Stage 1.3: Audio Playback & Interruption
-* [ ] **9. Audio Output Streamer:** Implement a playback queue for incoming 24kHz PCM chunks from Gemini.
-* [ ] **10. Gapless Playback Engine:** Ensure smooth audio delivery using the Web Audio API.
-* [ ] **11. Interruption (Barge-In) Logic:** Listen for Gemini's interruption signals; flush the frontend audio buffer immediately when user input is detected.
-* [ ] **12. Latency Audit:** Measure and optimize the round-trip time to ensure it remains < 500ms.
+* [x] **9. Audio Output Streamer:** Implement a playback queue for incoming 24kHz PCM chunks from Gemini.
+* [x] **10. Gapless Playback Engine:** Ensure smooth audio delivery using the Web Audio API.
+* [x] **11. Interruption (Barge-In) Logic:** Listen for Gemini's interruption signals; flush the frontend audio buffer immediately when user input is detected.
+* [x] **12. Latency Audit:** Measure and optimize the round-trip time to ensure it remains < 500ms.
 
 ### Phase 2: Central Interface & State Management
 Focuses on building the interactive user interface and immediate context tracking.
