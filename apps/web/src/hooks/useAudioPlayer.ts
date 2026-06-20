@@ -1,10 +1,5 @@
 import { useRef, useCallback, useEffect } from "react";
-
-export interface UseAudioPlayerResult {
-  playChunk: (base64Audio: string) => void;
-  stop: () => void;
-  initPlayer: () => void;
-}
+import { UseAudioPlayerResult } from "./useAudioPlayer.interface";
 
 export function useAudioPlayer(): UseAudioPlayerResult {
   const audioContextRef = useRef<AudioContext | null>(null);
