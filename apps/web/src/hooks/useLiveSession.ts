@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useAudioRecorder } from "./useAudioRecorder";
+import { useAudioPlayer } from "./useAudioPlayer";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "failed";
 
@@ -19,6 +20,8 @@ export function useLiveSession(): UseLiveSessionResult {
   const [logs, setLogs] = useState<string[]>(["System ready."]);
   const wsRef = useRef<WebSocket | null>(null);
 
+  const { playChunk, stop: stopPlayback, initPlayer } = useAudioPlayer();
+
   const addLog = useCallback((msg: string) => {
     setLogs((prev) => [...prev.slice(-15), `${new Date().toLocaleTimeString()}: ${msg}`]);
   }, []);
@@ -32,6 +35,7 @@ export function useLiveSession(): UseLiveSessionResult {
   const { isRecording, startRecording, stopRecording, audioLevel } = useAudioRecorder(handleAudioData);
 
   const connect = useCallback(() => {
+    initPlayer();
     setStatus("connecting");
     addLog("Connecting to WebSocket proxy...");
 
@@ -65,10 +69,11 @@ export function useLiveSession(): UseLiveSessionResult {
             addLog(`Gemini: ${msg.text}`);
           }
           if (msg.audio) {
-            addLog(`Received response chunk (size: ${msg.audio.length})`);
+            playChunk(msg.audio);
           }
         } else if (msg.type === "interrupted") {
           addLog("Gemini interrupted.");
+          stopPlayback();
         }
       } catch (err) {
         addLog(`Error parsing message: ${err}`);
@@ -79,6 +84,7 @@ export function useLiveSession(): UseLiveSessionResult {
       setStatus("disconnected");
       addLog("Connection closed.");
       stopRecording();
+      stopPlayback();
     };
 
     ws.onerror = (err) => {
@@ -86,14 +92,15 @@ export function useLiveSession(): UseLiveSessionResult {
       addLog("WebSocket connection error.");
       console.error(err);
     };
-  }, [addLog, stopRecording]);
+  }, [addLog, stopRecording, playChunk, stopPlayback, initPlayer]);
 
   const disconnect = useCallback(() => {
+    stopPlayback();
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
-  }, []);
+  }, [stopPlayback]);
 
   const toggleRecording = useCallback(async () => {
     if (isRecording) {
@@ -101,13 +108,15 @@ export function useLiveSession(): UseLiveSessionResult {
       addLog("Stopped recording.");
     } else {
       try {
+        // Halt any playing audio when user starts recording
+        stopPlayback();
         await startRecording();
         addLog("Mic active. Recording...");
       } catch (err) {
         addLog("Permission denied or microphone error.");
       }
     }
-  }, [isRecording, startRecording, stopRecording, addLog]);
+  }, [isRecording, startRecording, stopRecording, addLog, stopPlayback]);
 
   // Handle cleanup on unmount
   useEffect(() => {
