@@ -1,26 +1,27 @@
 ---
-name: implement
-description: Implement a single stage from a plan file. Usage: /implement <stage_number_or_name> [plan_file_path]
+name: plan-stage-implementer
+description: Implements a specific stage from an implementation plan file, manages git branching, build verification, commits, and opens a Pull Request using GitHub CLI (gh).
 ---
+# Plan Stage Implementer Skill
 
-You are implementing a single stage from a project plan file.
+You are tasked with implementing a single stage from a project plan file.
 
-## Your Input
-Arguments provided: {{args}}
+## Expected Parameters
+When this skill is loaded, look at the user's request to identify:
+1. The **stage identifier** (a number like `3` or a name like `database-migration`).
+2. The **path to the plan file** (optional, e.g. `docs/implementation-plan.md`).
 
-The first argument is the **stage identifier** (a number like `3` or a name like `database-migration`).
-The second argument (optional) is the **path to the plan file**.
+If they are not clear, proceed with the default plan file detection.
 
 ## Step 0: Locate the Plan File
 
 Determine which plan file to use, in this priority order:
-
-1. **Explicit argument**: If a second argument was provided above, use that file path.
-2. **Configured default**: Check if `.gemini/GEMINI.md` contains a `Plan File` or `Current Plan` entry (look for a line like `**Plan File**: path/to/plan.md` or `Current Plan: path/to/plan.md`). If found, use that path.
+1. **Explicit path**: If the user specified a path, use it.
+2. **Configured default**: Check if `AGENTS.md` contains a `Plan File` or `Current Plan` entry (look for a line like `**Plan File**: path/to/plan.md` or `Current Plan: path/to/plan.md`). If found, use that path.
 3. **Auto-detect**: Search the project root for markdown files with plan-related names. Look for files matching patterns like `*plan*`, `*Plan*`, `*roadmap*`, `*implementation*`, `*stages*` (case-insensitive) in the project root directory.
    If exactly one match is found, use it. If multiple are found, list them and STOP — ask the user which one to use.
 4. **Not found**: If no plan file can be located, STOP and report:
-   > "No plan file found. Please either pass the path as a second argument (`/implement <stage> path/to/plan.md`) or set a default in `.gemini/GEMINI.md` with `**Plan File**: path/to/plan.md`."
+   > "No plan file found. Please either specify the path in your request or configure a default in `AGENTS.md` with `**Plan File**: path/to/plan.md`."
 
 Read the plan file and confirm you found the target stage before proceeding.
 
@@ -28,27 +29,27 @@ Read the plan file and confirm you found the target stage before proceeding.
 
 1. **ONE STAGE ONLY.** You MUST implement ONLY the requested stage — nothing more. Do NOT start, scaffold, or touch any code belonging to other stages. If a task feels like it belongs to a different stage, STOP and skip it.
 2. **Follow the plan exactly.** Read the full stage description and implement every task listed under that stage.
-3. **Follow all project rules.** If `.gemini/GEMINI.md` exists, read it and follow all coding standards, conventions, and constraints defined there.
+3. **Follow all project rules.** If `AGENTS.md` exists, read it and follow all coding standards, conventions, and constraints defined there.
 4. **Do NOT proceed to the next stage** after completion. Your work is done after opening the PR.
 
 ## Git Workflow — Follow This Exactly
 
 ### Step 1: Verify clean working tree
 Run:
-```
+```bash
 git status
 ```
 If there are uncommitted changes, STOP and ask the user to commit or stash them first.
 
 ### Step 2: Determine the current branch
 Run:
-```
+```bash
 git branch --show-current
 ```
 Save this as the **BASE_BRANCH**. This is the branch your PR will target.
 
 ### Step 3: Create a feature branch
-Check if `.gemini/GEMINI.md` contains a `Branch Format` entry (e.g., `**Branch Format**: dev/<identifier>-<short-description>`). If found, use that format. Otherwise, use the default format.
+Check if `AGENTS.md` contains a `Branch Format` entry (e.g., `**Branch Format**: dev/<identifier>-<short-description>`). If found, use that format. Otherwise, use the default format.
 
 Default branch naming format: `feature/stage-<identifier>-<short-description>`
 
@@ -57,15 +58,15 @@ Examples:
 - Named stage: `feature/stage-database-migration`
 
 Run:
-```
+```bash
 git checkout -b feature/stage-<identifier>-<short-description>
 ```
 
 ### Step 4: Implement the stage
-- Read the full stage description from the plan file
-- Implement ALL tasks listed in that stage
-- Follow `.gemini/GEMINI.md` rules strictly (if the file exists)
-- Reference any design documents, mockups, or guidelines mentioned in the plan
+- Read the full stage description from the plan file.
+- Implement ALL tasks listed in that stage.
+- Follow `AGENTS.md` rules strictly (if the file exists).
+- Reference any design documents, mockups, or guidelines mentioned in the plan.
 
 ### Step 5: Verify the build
 Auto-detect the project's build system and run the appropriate build/check command:
@@ -81,7 +82,7 @@ Auto-detect the project's build system and run the appropriate build/check comma
 | `pom.xml` | `mvn compile` |
 | `build.gradle` / `build.gradle.kts` | `./gradlew build` |
 
-If the project has a custom build command documented in `.gemini/GEMINI.md` (look for a `Build Command` entry), use that instead.
+If the project has a custom build command documented in `AGENTS.md` (look for a `Build Command` entry), use that instead.
 
 If no build system is detected, skip this step but note it in the PR description.
 
@@ -89,10 +90,8 @@ Fix any build errors before proceeding to the next step.
 
 ### Step 6: Commit your changes
 Write a clear, descriptive commit message using conventional commits format:
-```
+```bash
 git add -A
-```
-```
 git commit -m "feat: implement stage <identifier> - <brief description>"
 ```
 
@@ -105,12 +104,12 @@ Conventional commit prefixes:
 - `chore:` for maintenance tasks
 
 ### Step 7: Push the branch
-```
+```bash
 git push -u origin <branch-name>
 ```
 
 ### Step 8: Create a Pull Request using GitHub CLI (`gh`)
-```
+```bash
 gh pr create --base <BASE_BRANCH> --title "feat: Stage <identifier> — <Stage Title>" --body "<PR body>"
 ```
 
@@ -124,12 +123,12 @@ The PR body MUST include:
 ### Step 9: Update progress in the plan file
 After the PR is created, update the plan file to reflect progress:
 
-- If the stage heading uses markers like `[ ]`, update it to `[x]` or mark it with ✅
-- If the stage heading has no markers, prepend `✅` or `~~strikethrough~~` to indicate completion
-- If the plan file has a progress section, update it accordingly
+- If the stage heading uses markers like `[ ]`, update it to `[x]` or mark it with ✅.
+- If the stage heading has no markers, prepend `✅` or `~~strikethrough~~` to indicate completion.
+- If the plan file has a progress section, update it accordingly.
 
 Commit and push this progress update:
-```
+```bash
 git add <plan-file>
 git commit -m "docs: mark stage <identifier> as completed"
 git push
