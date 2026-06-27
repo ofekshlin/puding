@@ -7,6 +7,7 @@ import {
   ServerMessage,
 } from "../types";
 import { LiveSession } from "../session/live-session.interface";
+import { SessionTracker } from "../session/session-tracker.interface";
 
 export class GeminiSession implements LiveSession {
   private readonly logger: Logger;
@@ -17,7 +18,8 @@ export class GeminiSession implements LiveSession {
   constructor(
     private readonly clientWs: WebSocket,
     private readonly apiKey: string,
-    private readonly sessionId: string,
+    public readonly sessionId: string,
+    private readonly sessionTracker: SessionTracker,
   ) {
     this.logger = new Logger(`${GeminiSession.name}[${sessionId}]`);
     const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
@@ -61,6 +63,10 @@ export class GeminiSession implements LiveSession {
     try {
       const rawText = data.toString();
       const response = JSON.parse(rawText) as GeminiServerMessage;
+
+      if (response.usageMetadata) {
+        this.sessionTracker.updateTokens(this.sessionId, response.usageMetadata);
+      }
 
       if (response.setupComplete) {
         this.logger.log("Setup handshake confirmed by Gemini.");

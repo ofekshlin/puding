@@ -16,4 +16,9 @@ export interface GeminiServerMessage {
     turnComplete?: boolean;
     interrupted?: boolean;
   };
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  };
 }

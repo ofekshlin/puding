@@ -1,7 +1,8 @@
-import { useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { UseAudioPlayerResult } from "./useAudioPlayer.interface";
 
 export function useAudioPlayer(): UseAudioPlayerResult {
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const nextPlayTimeRef = useRef<number>(0);
   const scheduledNodesRef = useRef<AudioBufferSourceNode[]>([]);
@@ -73,8 +74,13 @@ export function useAudioPlayer(): UseAudioPlayerResult {
 
       // Track source node for interruption / cleanup
       scheduledNodesRef.current.push(sourceNode);
+      setIsSpeaking(true);
+
       sourceNode.onended = () => {
         scheduledNodesRef.current = scheduledNodesRef.current.filter((node) => node !== sourceNode);
+        if (scheduledNodesRef.current.length === 0) {
+          setIsSpeaking(false);
+        }
       };
     } catch (err) {
       console.error("Failed to decode and play audio chunk:", err);
@@ -97,6 +103,7 @@ export function useAudioPlayer(): UseAudioPlayerResult {
     });
     scheduledNodesRef.current = [];
     nextPlayTimeRef.current = 0;
+    setIsSpeaking(false);
   }, []);
 
   // Cleanup AudioContext on unmount
@@ -117,5 +124,6 @@ export function useAudioPlayer(): UseAudioPlayerResult {
     playChunk,
     stop,
     initPlayer,
+    isSpeaking,
   };
 }
