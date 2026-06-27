@@ -74,9 +74,9 @@ Focuses on establishing the real-time full-duplex communication pipelines.
 ### Phase 2: Central Interface & State Management
 Focuses on building the interactive user interface and immediate context tracking.
 
-* [ ] **8. PWA Manifest Configuration:** Configure `manifest.json`, service workers, and iOS/Android asset parameters to make the app installable.
-* [ ] **9. The "Orb" UI Component:** Create an interactive, animated graphical element representing Puding’s current state (Gray = Sleeping/Thinking, Blue = Listening, Purple/Green Gradient Wave = Speaking).
-* [ ] **10. Session State Tracker:** Create an ephemeral database or in-memory session object on the backend to manage current session IDs, token lengths, and active websocket statuses.
+* [x] **8. PWA Manifest Configuration:** Configure `manifest.json`, service workers, and iOS/Android asset parameters to make the app installable.
+* [x] **9. The "Orb" UI Component:** Create an interactive, animated graphical element representing Puding’s current state (Gray = Sleeping/Thinking, Blue = Listening, Purple/Green Gradient Wave = Speaking).
+* [x] **10. Session State Tracker:** Create an ephemeral database or in-memory session object on the backend to manage current session IDs, token lengths, and active websocket statuses.
 
 ### Phase 3: Semantic Long-Term Memory (RAG Integration)
 Focuses on making Puding recall facts across completely separate conversation instances.
