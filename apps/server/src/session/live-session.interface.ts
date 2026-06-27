@@ -5,6 +5,11 @@ import { ClientSetupConfig } from "../types";
  */
 export interface LiveSession {
   /**
+   * The unique identifier for the session.
+   */
+  readonly sessionId: string;
+
+  /**
    * Forwards a setup configuration payload to the live API.
    */
   sendSetup(config: ClientSetupConfig): void;

@@ -8,6 +8,7 @@ export interface UseLiveSessionResult {
   status: ConnectionStatus;
   logs: string[];
   isRecording: boolean;
+  isSpeaking: boolean;
   audioLevel: number;
   connect: () => void;
   disconnect: () => void;
@@ -20,7 +21,7 @@ export function useLiveSession(): UseLiveSessionResult {
   const [logs, setLogs] = useState<string[]>(["System ready."]);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const { playChunk, stop: stopPlayback, initPlayer } = useAudioPlayer();
+  const { playChunk, stop: stopPlayback, initPlayer, isSpeaking } = useAudioPlayer();
 
   const addLog = useCallback((msg: string) => {
     setLogs((prev) => [...prev.slice(-15), `${new Date().toLocaleTimeString()}: ${msg}`]);
@@ -131,6 +132,7 @@ export function useLiveSession(): UseLiveSessionResult {
     status,
     logs,
     isRecording,
+    isSpeaking,
     audioLevel,
     connect,
     disconnect,

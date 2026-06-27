@@ -12,6 +12,7 @@ export default function Home() {
     status,
     logs,
     isRecording,
+    isSpeaking,
     audioLevel,
     connect,
     disconnect,
@@ -30,6 +31,7 @@ export default function Home() {
         <VisualizerOrb
           status={status}
           isRecording={isRecording}
+          isSpeaking={isSpeaking}
           audioLevel={audioLevel}
           onOrbClick={status === "connected" ? toggleRecording : connect}
           disabled={status === "connecting"}

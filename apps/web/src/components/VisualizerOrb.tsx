@@ -1,8 +1,9 @@
 import React from "react";
 
 interface VisualizerOrbProps {
-  status: string;
+  status: "disconnected" | "connecting" | "connected" | "failed";
   isRecording: boolean;
+  isSpeaking: boolean;
   audioLevel: number;
   onOrbClick: () => void;
   disabled: boolean;
@@ -11,25 +12,58 @@ interface VisualizerOrbProps {
 export const VisualizerOrb: React.FC<VisualizerOrbProps> = ({
   status,
   isRecording,
+  isSpeaking,
   audioLevel,
   onOrbClick,
   disabled,
 }) => {
+  // Determine state mapping: sleeping, thinking, listening, speaking
+  let orbState: "sleeping" | "thinking" | "listening" | "speaking" = "sleeping";
+  if (status === "connecting") {
+    orbState = "thinking";
+  } else if (status === "connected") {
+    if (isRecording) {
+      orbState = "listening";
+    } else if (isSpeaking) {
+      orbState = "speaking";
+    }
+  }
+
   return (
-    <div className={`visualizer-orb ${isRecording ? "recording" : ""}`}>
+    <div className={`visualizer-orb state-${orbState}`}>
+      {/* Outer spinning ring for thinking state */}
+      {orbState === "thinking" && <div className="orb-ring-spinner"></div>}
+
       <button
         onClick={onOrbClick}
         disabled={disabled}
-        className={`orb-inner ${isRecording ? "recording" : ""}`}
+        className={`orb-inner state-${orbState}`}
         style={{
-          transform: isRecording ? `scale(${1 + audioLevel / 180})` : "scale(1)",
-          boxShadow: isRecording
-            ? `0 0 ${20 + audioLevel / 2}px rgba(239, 68, 68, ${0.4 + audioLevel / 100})`
+          transform: orbState === "listening" ? `scale(${1 + audioLevel / 180})` : "scale(1)",
+          boxShadow: orbState === "listening"
+            ? `0 0 ${20 + audioLevel / 2}px rgba(59, 130, 246, ${0.4 + audioLevel / 100})`
             : undefined,
         }}
-        aria-label={isRecording ? "Stop Recording" : status === "connected" ? "Start Recording" : "Connect Agent"}
+        aria-label={
+          orbState === "listening" 
+            ? "Stop Recording" 
+            : status === "connected" 
+              ? "Start Recording" 
+              : "Connect Agent"
+        }
       >
-        {status !== "connected" ? (
+        {/* Fluctuating overlay waves for speaking state */}
+        {orbState === "speaking" && (
+          <div className="orb-waves">
+            <span className="speaking-wave wave-1"></span>
+            <span className="speaking-wave wave-2"></span>
+            <span className="speaking-wave wave-3"></span>
+          </div>
+        )}
+
+        {/* State icons */}
+        {status !== "connected" && status !== "connecting" ? (
+          // Play icon when sleeping
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="32"
@@ -44,7 +78,11 @@ export const VisualizerOrb: React.FC<VisualizerOrbProps> = ({
           >
             <path d="M5 3l14 9-14 9V3z" />
           </svg>
-        ) : isRecording ? (
+        ) : orbState === "thinking" ? (
+          // Subtle loading/pulsing dot
+          <span className="thinking-dot"></span>
+        ) : orbState === "listening" ? (
+          // Stop/Square icon when recording/listening
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="32"
@@ -52,7 +90,7 @@ export const VisualizerOrb: React.FC<VisualizerOrbProps> = ({
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
+            strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
             aria-hidden="true"
@@ -60,6 +98,7 @@ export const VisualizerOrb: React.FC<VisualizerOrbProps> = ({
             <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
           </svg>
         ) : (
+          // Speaking or Idle Microphone icon
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="32"

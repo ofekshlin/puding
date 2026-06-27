@@ -10,6 +10,7 @@ import { ConfigService } from "../config/config.service";
 import { Logger, Inject } from "@nestjs/common";
 import { ClientMessage } from "../types";
 import { randomUUID } from "crypto";
+import { SessionTracker } from "../session/session-tracker.interface";
 
 @WebSocketGateway({ path: "/" })
 export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -19,6 +20,7 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     @Inject(LiveSessionService) private readonly liveSessionService: LiveSessionService,
     @Inject(ConfigService) private readonly configService: ConfigService,
+    @Inject(SessionTracker) private readonly sessionTracker: SessionTracker,
   ) {}
 
   /**
@@ -36,6 +38,8 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
+    this.sessionTracker.registerSession(sessionId, clientIp || "unknown");
+
     const session = this.liveSessionService.createSession(client, apiKey, sessionId);
     this.sessions.set(client, session);
 
@@ -51,6 +55,7 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   public handleDisconnect(client: WebSocket): void {
     const session = this.sessions.get(client);
     if (session) {
+      this.sessionTracker.disconnectSession(session.sessionId);
       session.destroy();
       this.sessions.delete(client);
       this.logger.log("Client session terminated and cleaned up.");
