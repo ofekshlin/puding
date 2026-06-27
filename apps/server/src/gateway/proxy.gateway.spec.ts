@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { ProxyGateway } from "./proxy.gateway";
 import { LiveSessionService, LiveSession } from "../session/live-session.service";
 import { ConfigService } from "../config/config.service";
+import { SessionTracker } from "../session/session-tracker.interface";
 import WebSocket from "ws";
 import { EventEmitter } from "events";
 import { IncomingMessage } from "http";
@@ -11,9 +12,11 @@ describe("ProxyGateway (Unit)", () => {
   let mockLiveSessionService: jest.Mocked<LiveSessionService>;
   let mockLiveSession: jest.Mocked<LiveSession>;
   let mockConfigService: jest.Mocked<ConfigService>;
+  let mockSessionTracker: jest.Mocked<SessionTracker>;
 
   beforeEach(async () => {
     mockLiveSession = {
+      sessionId: "test-session-id",
       sendSetup: jest.fn(),
       sendClientContent: jest.fn(),
       sendAudio: jest.fn(),
@@ -29,6 +32,14 @@ describe("ProxyGateway (Unit)", () => {
       getPort: jest.fn().mockReturnValue(3001),
     } as any;
 
+    mockSessionTracker = {
+      registerSession: jest.fn(),
+      disconnectSession: jest.fn(),
+      updateTokens: jest.fn(),
+      getAllSessions: jest.fn(),
+      getSession: jest.fn(),
+    } as any;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProxyGateway,
@@ -39,6 +50,10 @@ describe("ProxyGateway (Unit)", () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: SessionTracker,
+          useValue: mockSessionTracker,
         },
       ],
     }).compile();
