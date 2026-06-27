@@ -37,6 +37,7 @@ self.addEventListener('fetch', (event) => {
     event.request.method !== 'GET' || 
     url.startsWith('ws:') || 
     url.startsWith('wss:') || 
+    url.includes(':3001') ||
     url.includes('/api/') ||
     url.includes('/sessions')
   ) {
