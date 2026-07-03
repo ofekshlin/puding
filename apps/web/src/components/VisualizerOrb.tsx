@@ -7,6 +7,7 @@ interface VisualizerOrbProps {
   audioLevel: number;
   onOrbClick: () => void;
   disabled: boolean;
+  isThinking?: boolean;
 }
 
 export const VisualizerOrb: React.FC<VisualizerOrbProps> = ({
@@ -16,10 +17,11 @@ export const VisualizerOrb: React.FC<VisualizerOrbProps> = ({
   audioLevel,
   onOrbClick,
   disabled,
+  isThinking = false,
 }) => {
   // Determine state mapping: sleeping, thinking, listening, speaking
   let orbState: "sleeping" | "thinking" | "listening" | "speaking" = "sleeping";
-  if (status === "connecting") {
+  if (status === "connecting" || isThinking) {
     orbState = "thinking";
   } else if (status === "connected") {
     if (isRecording) {
