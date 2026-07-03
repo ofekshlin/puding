@@ -78,35 +78,42 @@ Focuses on building the interactive user interface and immediate context trackin
 * [x] **9. The "Orb" UI Component:** Create an interactive, animated graphical element representing Puding’s current state (Gray = Sleeping/Thinking, Blue = Listening, Purple/Green Gradient Wave = Speaking).
 * [x] **10. Session State Tracker:** Create an ephemeral database or in-memory session object on the backend to manage current session IDs, token lengths, and active websocket statuses.
 
+### Phase 2.5: Bidirectional Text & Audio Interaction (Chat UI)
+Focuses on enabling multi-modal text and audio chat sessions with extensible visualization layouts.
+
+* [ ] **11. WebSocket Integration Upgrade:** Configure NestJS server proxy to parse and relay audio transcripts (`inputTranscription`, `outputTranscription`) and turn boundaries (`turnComplete`) from Gemini Live API.
+* [ ] **12. Multi-Modal Client Hook:** Implement `useLiveSession` hook upgrade to track conversation message history, coordinate raw text turns, and manage thinking states.
+* [ ] **13. Extensible Chat UI:** Build scrollable `ChatWindow` and `ChatInput` components with support for dynamic integration visualization widgets.
+
 ### Phase 3: Semantic Long-Term Memory (RAG Integration)
 Focuses on making Puding recall facts across completely separate conversation instances.
 
-* [ ] **11. Vector DB Provisioning:** Deploy a PostgreSQL instance with the `pgvector` extension enabled, or provision a Pinecone vector index.
-* [ ] **12. Asynchronous Conversation Summarizer:** Write a background worker that triggers when a user session disconnects, summarizing key facts about the user (e.g., identity, preferences, ongoing tasks).
-* [ ] **13. Embedding Generation Engine:** Connect the summary engine to text embedding APIs to transform text insights into high-dimensional vectors.
-* [ ] **14. Context Injection Pipeline:** Develop a pre-session retrieval function that queries the Vector DB during initialization and appends historical data directly into Puding's initial system prompt.
+* [ ] **14. Vector DB Provisioning:** Deploy a PostgreSQL instance with the `pgvector` extension enabled, or provision a Pinecone vector index.
+* [ ] **15. Asynchronous Conversation Summarizer:** Write a background worker that triggers when a user session disconnects, summarizing key facts about the user (e.g., identity, preferences, ongoing tasks).
+* [ ] **16. Embedding Generation Engine:** Connect the summary engine to text embedding APIs to transform text insights into high-dimensional vectors.
+* [ ] **17. Context Injection Pipeline:** Develop a pre-session retrieval function that queries the Vector DB during initialization and appends historical data directly into Puding's initial system prompt.
 
 ### Phase 4: Function Calling & Google Search Integration
 Empowers Puding to autonomously fetch real-time facts from the live internet.
 
-* [ ] **15. Function Calling Declaration:** Register a structured tool configuration Schema for `search_google(query: string)` inside the Gemini Live API initializer.
-* [ ] **16. Serper / Tavily API Client:** Integrate a dedicated web-scraping/search API on the Node.js backend.
-* [ ] **17. Tool Execution Loop:** Implement the backend interceptor: when Gemini stops speaking and sends a `toolCall` payload, parse the JSON, execute the search API, and stream the text results back as a `toolResponse`.
+* [ ] **18. Function Calling Declaration:** Register a structured tool configuration Schema for `search_google(query: string)` inside the Gemini Live API initializer.
+* [ ] **19. Serper / Tavily API Client:** Integrate a dedicated web-scraping/search API on the Node.js backend.
+* [ ] **20. Tool Execution Loop:** Implement the backend interceptor: when Gemini stops speaking and sends a `toolCall` payload, parse the JSON, execute the search API, and stream the text results back as a `toolResponse`.
 
 ### Phase 5: Spotify Media Control Integration
 Enables Puding to manage music playback and query song metadata.
 
-* [ ] **18. Spotify Developer Portal Setup:** Register Project Puding in the Spotify Developer Dashboard to acquire a `Client ID` and `Client Secret`.
-* [ ] **19. OAuth2 Authentication Flow:** Implement a secure authorization route allowing the user to log in via Spotify once and securely store the `Access Token` and `Refresh Token`.
-* [ ] **20. Spotify Tool Schema:** Declare function schemas for `play_music(genre_or_artist: string)`, `pause_music()`, and `get_current_track()`.
-* [ ] **21. Web API Execution:** Code the backend wrappers using the official Spotify Web API endpoints to programmatically control active playback devices.
+* [ ] **21. Spotify Developer Portal Setup:** Register Project Puding in the Spotify Developer Dashboard to acquire a `Client ID` and `Client Secret`.
+* [ ] **22. OAuth2 Authentication Flow:** Implement a secure authorization route allowing the user to log in via Spotify once and securely store the `Access Token` and `Refresh Token`.
+* [ ] **23. Spotify Tool Schema:** Declare function schemas for `play_music(genre_or_artist: string)`, `pause_music()`, and `get_current_track()`.
+* [ ] **24. Web API Execution:** Code the backend wrappers using the official Spotify Web API endpoints to programmatically control active playback devices.
 
 ### Phase 6: Notion Documentation & Knowledge Management
 Allows Puding to write structured notes, logs, and brain-dumps into a Notion Workspace.
 
-* [ ] **22. Notion Integration Provisioning:** Generate an Internal Integration Token within the Notion Developer settings and share a designated master database with the integration.
-* [ ] **23. Notion Tool Schema:** Create schemas for `create_notion_page(title: string, content: string)` and `append_to_log(text: string)`.
-* [ ] **24. Notion SDK Client:** Build backend methods using `@notionhq/client` to dynamically generate pages, block components, and bulleted lists on your personal workspace based on verbal summaries.
+* [ ] **25. Notion Integration Provisioning:** Generate an Internal Integration Token within the Notion Developer settings and share a designated master database with the integration.
+* [ ] **26. Notion Tool Schema:** Create schemas for `create_notion_page(title: string, content: string)` and `append_to_log(text: string)`.
+* [ ] **27. Notion SDK Client:** Build backend methods using `@notionhq/client` to dynamically generate pages, block components, and bulleted lists on your personal workspace based on verbal summaries.
 
 ---
 
