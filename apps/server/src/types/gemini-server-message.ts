@@ -13,6 +13,12 @@ export interface GeminiServerMessage {
         };
       }>;
     };
+    inputTranscription?: {
+      text?: string;
+    };
+    outputTranscription?: {
+      text?: string;
+    };
     turnComplete?: boolean;
     interrupted?: boolean;
   };

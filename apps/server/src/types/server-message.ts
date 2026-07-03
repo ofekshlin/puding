@@ -9,6 +9,8 @@ export type ServerMessage =
       type: "content";
       text?: string;
       audio?: string; // Base64 encoded 24kHz PCM audio chunk
+      userTranscription?: string;
+      turnComplete?: boolean;
     }
   | {
       type: "interrupted";
