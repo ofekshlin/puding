@@ -14,6 +14,9 @@ export interface ClientSetupConfig {
     };
   };
   systemInstruction?: string;
+  inputAudioTranscription?: {
+    model?: string;
+  };
 }
 
 /**
