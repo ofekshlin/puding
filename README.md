@@ -81,7 +81,7 @@ Focuses on building the interactive user interface and immediate context trackin
 ### Phase 2.5: Bidirectional Text & Audio Interaction (Chat UI)
 Focuses on enabling multi-modal text and audio chat sessions with extensible visualization layouts.
 
-* [ ] **11. WebSocket Integration Upgrade:** Configure NestJS server proxy to parse and relay audio transcripts (`inputTranscription`, `outputTranscription`) and turn boundaries (`turnComplete`) from Gemini Live API.
+* [x] **11. WebSocket Integration Upgrade:** Configure NestJS server proxy to parse and relay audio transcripts (`inputTranscription`, `outputTranscription`) and turn boundaries (`turnComplete`) from Gemini Live API.
 * [ ] **12. Multi-Modal Client Hook:** Implement `useLiveSession` hook upgrade to track conversation message history, coordinate raw text turns, and manage thinking states.
 * [ ] **13. Extensible Chat UI:** Build scrollable `ChatWindow` and `ChatInput` components with support for dynamic integration visualization widgets.
 
