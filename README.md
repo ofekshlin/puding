@@ -83,7 +83,7 @@ Focuses on enabling multi-modal text and audio chat sessions with extensible vis
 
 * [x] **11. WebSocket Integration Upgrade:** Configure NestJS server proxy to parse and relay audio transcripts (`inputTranscription`, `outputTranscription`) and turn boundaries (`turnComplete`) from Gemini Live API.
 * [x] **12. Multi-Modal Client Hook:** Implement `useLiveSession` hook upgrade to track conversation message history, coordinate raw text turns, and manage thinking states.
-* [ ] **13. Extensible Chat UI:** Build scrollable `ChatWindow` and `ChatInput` components with support for dynamic integration visualization widgets.
+* [x] **13. Extensible Chat UI:** Build scrollable `ChatWindow` and `ChatInput` components with support for dynamic integration visualization widgets.
 
 ### Phase 3: Semantic Long-Term Memory (RAG Integration)
 Focuses on making Puding recall facts across completely separate conversation instances.
