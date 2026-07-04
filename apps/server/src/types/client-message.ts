@@ -17,6 +17,9 @@ export interface ClientSetupConfig {
   inputAudioTranscription?: {
     model?: string;
   };
+  outputAudioTranscription?: {
+    model?: string;
+  };
 }
 
 /**
