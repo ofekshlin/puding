@@ -5,18 +5,21 @@ import { useLiveSession } from "../hooks/useLiveSession";
 import { VisualizerOrb } from "../components/VisualizerOrb";
 import { StatusIndicator } from "../components/StatusIndicator";
 import { ControlPanel } from "../components/ControlPanel";
-import { LogConsole } from "../components/LogConsole";
+import { ChatWindow } from "../components/ChatWindow";
+import { ChatInput } from "../components/ChatInput";
 
 export default function Home() {
   const {
     status,
-    logs,
     isRecording,
     isSpeaking,
     audioLevel,
+    messages,
+    isThinking,
     connect,
     disconnect,
     toggleRecording,
+    sendTextMessage,
   } = useLiveSession();
 
   return (
@@ -35,6 +38,7 @@ export default function Home() {
           audioLevel={audioLevel}
           onOrbClick={status === "connected" ? toggleRecording : connect}
           disabled={status === "connecting"}
+          isThinking={isThinking}
         />
 
         {/* State monitoring label */}
@@ -53,8 +57,11 @@ export default function Home() {
           onToggleRecording={toggleRecording}
         />
 
-        {/* Scrolling text console log panel */}
-        <LogConsole logs={logs} />
+        {/* Chat Window showing conversation messages & widgets */}
+        <ChatWindow messages={messages} isThinking={isThinking} />
+
+        {/* Text input to send typed messages */}
+        <ChatInput status={status} onSendMessage={sendTextMessage} />
       </main>
     </div>
   );

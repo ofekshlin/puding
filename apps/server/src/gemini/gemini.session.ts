@@ -83,6 +83,20 @@ export class GeminiSession implements LiveSession {
         return;
       }
 
+      if (content.inputTranscription?.text) {
+        this.sendToClient({
+          type: "content",
+          userTranscription: content.inputTranscription.text,
+        });
+      }
+
+      if (content.outputTranscription?.text) {
+        this.sendToClient({
+          type: "content",
+          text: content.outputTranscription.text,
+        });
+      }
+
       if (content.modelTurn?.parts) {
         for (const part of content.modelTurn.parts) {
           const text = part.text;
@@ -96,6 +110,13 @@ export class GeminiSession implements LiveSession {
             });
           }
         }
+      }
+
+      if (content.turnComplete) {
+        this.sendToClient({
+          type: "content",
+          turnComplete: true,
+        });
       }
     } catch (error) {
       this.logger.error("Error parsing Gemini message payload:", error);
@@ -118,6 +139,8 @@ export class GeminiSession implements LiveSession {
               parts: [{ text: config.systemInstruction }],
             }
           : undefined,
+        inputAudioTranscription: config.inputAudioTranscription,
+        outputAudioTranscription: config.outputAudioTranscription,
       },
     };
 

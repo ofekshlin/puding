@@ -18,6 +18,12 @@ export type GeminiClientMessage =
         systemInstruction?: {
           parts: Array<{ text: string }>;
         };
+        inputAudioTranscription?: {
+          model?: string;
+        };
+        outputAudioTranscription?: {
+          model?: string;
+        };
       };
     }
   | {
