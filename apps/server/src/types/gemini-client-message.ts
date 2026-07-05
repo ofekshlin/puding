@@ -21,6 +21,9 @@ export type GeminiClientMessage =
         inputAudioTranscription?: {
           model?: string;
         };
+        outputAudioTranscription?: {
+          model?: string;
+        };
       };
     }
   | {

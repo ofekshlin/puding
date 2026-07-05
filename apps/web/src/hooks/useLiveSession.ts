@@ -71,9 +71,10 @@ export function useLiveSession(): UseLiveSessionResult {
         config: {
           model: "models/gemini-3.1-flash-live-preview",
           generationConfig: {
-            responseModalities: ["TEXT", "AUDIO"],
+            responseModalities: ["AUDIO"],
           },
           inputAudioTranscription: {},
+          outputAudioTranscription: {},
           systemInstruction: "You are Puding, an ultra-low-latency voice assistant. Respond briefly.",
         },
       };
@@ -245,6 +246,7 @@ export function useLiveSession(): UseLiveSessionResult {
       }
     }
   }, [isRecording, startRecording, stopRecording, addLog, stopPlayback]);
+
 
   useEffect(() => {
     return () => {

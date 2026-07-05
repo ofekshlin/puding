@@ -140,6 +140,7 @@ export class GeminiSession implements LiveSession {
             }
           : undefined,
         inputAudioTranscription: config.inputAudioTranscription,
+        outputAudioTranscription: config.outputAudioTranscription,
       },
     };
 
