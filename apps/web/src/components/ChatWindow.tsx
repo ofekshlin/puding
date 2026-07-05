@@ -6,6 +6,57 @@ interface ChatWindowProps {
   isThinking: boolean;
 }
 
+interface IntegrationCardProps {
+  data: any;
+}
+
+const SpotifyCard: React.FC<IntegrationCardProps> = ({ data }) => (
+  <div className="integration-card spotify-card">
+    <div className="card-header">
+      <span className="card-icon">🎵</span>
+      <span className="card-title">Spotify Playback</span>
+    </div>
+    <div className="card-body">
+      <strong className="track-name">{data.track || "Unknown Track"}</strong>
+      <span className="artist-name">{data.artist || "Unknown Artist"}</span>
+    </div>
+    {data.isPlaying && (
+      <div className="playback-indicator">
+        <span className="bar"></span>
+        <span className="bar"></span>
+        <span className="bar"></span>
+      </div>
+    )}
+  </div>
+);
+
+const NotionCard: React.FC<IntegrationCardProps> = ({ data }) => (
+  <div className="integration-card notion-card">
+    <div className="card-header">
+      <span className="card-icon">📝</span>
+      <span className="card-title">Notion Workspace</span>
+    </div>
+    <div className="card-body">
+      <strong className="doc-title">{data.title || "Untitled Page"}</strong>
+      <p className="doc-summary">{data.summary || "Summary..."}</p>
+    </div>
+    <div className="card-footer">
+      <span className="badge">Database Logged</span>
+    </div>
+  </div>
+);
+
+const DefaultIntegrationCard: React.FC<IntegrationCardProps> = ({ data }) => (
+  <div className="integration-card default-card">
+    <pre>{JSON.stringify(data, null, 2)}</pre>
+  </div>
+);
+
+const INTEGRATION_RENDERERS: Record<string, React.FC<IntegrationCardProps>> = {
+  spotify: SpotifyCard,
+  notion: NotionCard,
+};
+
 export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isThinking }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -16,50 +67,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isThinking }) 
   }, [messages, isThinking]);
 
   const renderIntegrationCard = (type: string, data: any) => {
-    switch (type) {
-      case "spotify":
-        return (
-          <div className="integration-card spotify-card">
-            <div className="card-header">
-              <span className="card-icon">🎵</span>
-              <span className="card-title">Spotify Playback</span>
-            </div>
-            <div className="card-body">
-              <strong className="track-name">{data.track || "Unknown Track"}</strong>
-              <span className="artist-name">{data.artist || "Unknown Artist"}</span>
-            </div>
-            {data.isPlaying && (
-              <div className="playback-indicator">
-                <span className="bar"></span>
-                <span className="bar"></span>
-                <span className="bar"></span>
-              </div>
-            )}
-          </div>
-        );
-      case "notion":
-        return (
-          <div className="integration-card notion-card">
-            <div className="card-header">
-              <span className="card-icon">📝</span>
-              <span className="card-title">Notion Workspace</span>
-            </div>
-            <div className="card-body">
-              <strong className="doc-title">{data.title || "Untitled Page"}</strong>
-              <p className="doc-summary">{data.summary || "Summary..."}</p>
-            </div>
-            <div className="card-footer">
-              <span className="badge">Database Logged</span>
-            </div>
-          </div>
-        );
-      default:
-        return (
-          <div className="integration-card default-card">
-            <pre>{JSON.stringify(data, null, 2)}</pre>
-          </div>
-        );
-    }
+    const Renderer = INTEGRATION_RENDERERS[type] || DefaultIntegrationCard;
+    return <Renderer data={data} />;
   };
 
   return (

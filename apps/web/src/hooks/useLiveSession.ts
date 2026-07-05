@@ -29,7 +29,6 @@ export interface UseLiveSessionResult {
   toggleRecording: () => Promise<void>;
   addLog: (msg: string) => void;
   sendTextMessage: (text: string) => void;
-  injectMockMessage: (type: "spotify" | "notion") => void;
 }
 
 export function useLiveSession(): UseLiveSessionResult {
@@ -248,49 +247,6 @@ export function useLiveSession(): UseLiveSessionResult {
     }
   }, [isRecording, startRecording, stopRecording, addLog, stopPlayback]);
 
-  const injectMockMessage = useCallback((type: "spotify" | "notion") => {
-    const id = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
-    const timestamp = new Date().toLocaleTimeString();
-
-    if (type === "spotify") {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id,
-          sender: "puding",
-          text: "I've started playing 'Starboy' by The Weeknd on Spotify.",
-          timestamp,
-          isStreaming: false,
-          integration: {
-            type: "spotify",
-            data: {
-              track: "Starboy",
-              artist: "The Weeknd",
-              isPlaying: true
-            }
-          }
-        }
-      ]);
-    } else if (type === "notion") {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id,
-          sender: "puding",
-          text: "I've logged a new document to Notion.",
-          timestamp,
-          isStreaming: false,
-          integration: {
-            type: "notion",
-            data: {
-              title: "Meeting Notes",
-              summary: "Discussed Phase 2.5 frontend architecture and styling specifications."
-            }
-          }
-        }
-      ]);
-    }
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -313,6 +269,5 @@ export function useLiveSession(): UseLiveSessionResult {
     toggleRecording,
     addLog,
     sendTextMessage,
-    injectMockMessage,
   };
 }
