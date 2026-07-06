@@ -6,7 +6,10 @@ interface ChatInputProps {
   onSendMessage: (text: string) => void;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ status, onSendMessage }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({
+  status,
+  onSendMessage,
+}) => {
   const [text, setText] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -25,7 +28,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({ status, onSendMessage }) =
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={isDisabled ? "Connect to start chatting..." : "Type a message..."}
+          placeholder={
+            isDisabled ? "Connect to start chatting..." : "Type a message..."
+          }
           disabled={isDisabled}
           className="chat-input-field"
         />

@@ -15,7 +15,9 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   const getStatusText = () => {
     switch (status) {
       case "connected":
-        return isRecording ? `Streaming Audio (Level: ${audioLevel})` : "Connected & Ready";
+        return isRecording
+          ? `Streaming Audio (Level: ${audioLevel})`
+          : "Connected & Ready";
       case "connecting":
         return "Connecting to Proxy...";
       case "failed":

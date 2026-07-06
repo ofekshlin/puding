@@ -2,7 +2,11 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useAudioRecorder } from "./useAudioRecorder";
 import { useAudioPlayer } from "./useAudioPlayer";
 
-export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "failed";
+export type ConnectionStatus =
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  | "failed";
 
 export interface ChatMessage {
   id: string;
@@ -38,10 +42,18 @@ export function useLiveSession(): UseLiveSessionResult {
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const { playChunk, stop: stopPlayback, initPlayer, isSpeaking } = useAudioPlayer();
+  const {
+    playChunk,
+    stop: stopPlayback,
+    initPlayer,
+    isSpeaking,
+  } = useAudioPlayer();
 
   const addLog = useCallback((msg: string) => {
-    setLogs((prev) => [...prev.slice(-15), `${new Date().toLocaleTimeString()}: ${msg}`]);
+    setLogs((prev) => [
+      ...prev.slice(-15),
+      `${new Date().toLocaleTimeString()}: ${msg}`,
+    ]);
   }, []);
 
   const handleAudioData = useCallback((pcmBuffer: ArrayBuffer) => {
@@ -50,7 +62,8 @@ export function useLiveSession(): UseLiveSessionResult {
     }
   }, []);
 
-  const { isRecording, startRecording, stopRecording, audioLevel } = useAudioRecorder(handleAudioData);
+  const { isRecording, startRecording, stopRecording, audioLevel } =
+    useAudioRecorder(handleAudioData);
 
   const connect = useCallback(() => {
     initPlayer();
@@ -75,7 +88,8 @@ export function useLiveSession(): UseLiveSessionResult {
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          systemInstruction: "You are Puding, an ultra-low-latency voice assistant. Respond briefly.",
+          systemInstruction:
+            "You are Puding, an ultra-low-latency voice assistant. Respond briefly.",
         },
       };
       ws.send(JSON.stringify(setupMsg));
@@ -101,7 +115,10 @@ export function useLiveSession(): UseLiveSessionResult {
               return [
                 ...prev,
                 {
-                  id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
+                  id:
+                    typeof crypto !== "undefined" && crypto.randomUUID
+                      ? crypto.randomUUID()
+                      : Math.random().toString(36).substring(2, 9),
                   sender: "user",
                   text: msg.userTranscription || "",
                   timestamp: new Date().toLocaleTimeString(),
@@ -120,7 +137,11 @@ export function useLiveSession(): UseLiveSessionResult {
               }
 
               const newLast = list[list.length - 1];
-              if (newLast && newLast.sender === "puding" && newLast.isStreaming) {
+              if (
+                newLast &&
+                newLast.sender === "puding" &&
+                newLast.isStreaming
+              ) {
                 list[list.length - 1] = {
                   ...newLast,
                   text: newLast.text + msg.text,
@@ -131,7 +152,10 @@ export function useLiveSession(): UseLiveSessionResult {
               return [
                 ...list,
                 {
-                  id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
+                  id:
+                    typeof crypto !== "undefined" && crypto.randomUUID
+                      ? crypto.randomUUID()
+                      : Math.random().toString(36).substring(2, 9),
                   sender: "puding",
                   text: msg.text || "",
                   timestamp: new Date().toLocaleTimeString(),
@@ -147,7 +171,9 @@ export function useLiveSession(): UseLiveSessionResult {
 
           if (msg.turnComplete) {
             setMessages((prev) =>
-              prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
+              prev.map((m) =>
+                m.isStreaming ? { ...m, isStreaming: false } : m,
+              ),
             );
             setIsThinking(false);
           }
@@ -158,12 +184,16 @@ export function useLiveSession(): UseLiveSessionResult {
             prev.map((m) => {
               if (m.isStreaming) {
                 if (m.sender === "puding") {
-                  return { ...m, text: m.text + " [interrupted]", isStreaming: false };
+                  return {
+                    ...m,
+                    text: m.text + " [interrupted]",
+                    isStreaming: false,
+                  };
                 }
                 return { ...m, isStreaming: false };
               }
               return m;
-            })
+            }),
           );
           setIsThinking(false);
         }
@@ -197,40 +227,46 @@ export function useLiveSession(): UseLiveSessionResult {
     }
   }, [stopPlayback]);
 
-  const sendTextMessage = useCallback((text: string) => {
-    if (!text.trim()) return;
+  const sendTextMessage = useCallback(
+    (text: string) => {
+      if (!text.trim()) return;
 
-    stopPlayback();
+      stopPlayback();
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const payload = {
-        type: "client_content",
-        content: {
-          turns: [
-            {
-              role: "user",
-              parts: [{ text }],
-            },
-          ],
-          turnComplete: true,
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        const payload = {
+          type: "client_content",
+          content: {
+            turns: [
+              {
+                role: "user",
+                parts: [{ text }],
+              },
+            ],
+            turnComplete: true,
+          },
+        };
+        wsRef.current.send(JSON.stringify(payload));
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id:
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : Math.random().toString(36).substring(2, 9),
+          sender: "user",
+          text,
+          timestamp: new Date().toLocaleTimeString(),
+          isStreaming: false,
         },
-      };
-      wsRef.current.send(JSON.stringify(payload));
-    }
+      ]);
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
-        sender: "user",
-        text,
-        timestamp: new Date().toLocaleTimeString(),
-        isStreaming: false,
-      },
-    ]);
-
-    setIsThinking(true);
-  }, [stopPlayback]);
+      setIsThinking(true);
+    },
+    [stopPlayback],
+  );
 
   const toggleRecording = useCallback(async () => {
     if (isRecording) {
@@ -246,7 +282,6 @@ export function useLiveSession(): UseLiveSessionResult {
       }
     }
   }, [isRecording, startRecording, stopRecording, addLog, stopPlayback]);
-
 
   useEffect(() => {
     return () => {

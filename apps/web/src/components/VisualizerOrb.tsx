@@ -41,16 +41,20 @@ export const VisualizerOrb: React.FC<VisualizerOrbProps> = ({
         disabled={disabled}
         className={`orb-inner state-${orbState}`}
         style={{
-          transform: orbState === "listening" ? `scale(${1 + audioLevel / 180})` : "scale(1)",
-          boxShadow: orbState === "listening"
-            ? `0 0 ${20 + audioLevel / 2}px rgba(59, 130, 246, ${0.4 + audioLevel / 100})`
-            : undefined,
+          transform:
+            orbState === "listening"
+              ? `scale(${1 + audioLevel / 180})`
+              : "scale(1)",
+          boxShadow:
+            orbState === "listening"
+              ? `0 0 ${20 + audioLevel / 2}px rgba(59, 130, 246, ${0.4 + audioLevel / 100})`
+              : undefined,
         }}
         aria-label={
-          orbState === "listening" 
-            ? "Stop Recording" 
-            : status === "connected" 
-              ? "Start Recording" 
+          orbState === "listening"
+            ? "Stop Recording"
+            : status === "connected"
+              ? "Start Recording"
               : "Connect Agent"
         }
       >

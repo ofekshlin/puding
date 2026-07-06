@@ -25,7 +25,9 @@ export const LogConsole: React.FC<LogConsoleProps> = ({ logs }) => {
         return (
           <div key={idx} className="log-entry">
             <span className="log-time">{time}</span>
-            <span className={isGemini ? "log-gemini" : ""}>{content || log}</span>
+            <span className={isGemini ? "log-gemini" : ""}>
+              {content || log}
+            </span>
           </div>
         );
       })}

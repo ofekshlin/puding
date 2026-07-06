@@ -17,7 +17,9 @@ export class ConfigService {
     this.port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
     if (!this.geminiApiKey) {
-      this.logger.error(`CRITICAL CONFIGURATION ERROR: GEMINI_API_KEY is not defined in the environment. Attempted loading from: ${envPath}`);
+      this.logger.error(
+        `CRITICAL CONFIGURATION ERROR: GEMINI_API_KEY is not defined in the environment. Attempted loading from: ${envPath}`,
+      );
     }
   }
 

@@ -7,10 +7,12 @@ interface UseAudioRecorderResult {
   audioLevel: number;
 }
 
-export function useAudioRecorder(onAudioData: (pcmBuffer: ArrayBuffer) => void): UseAudioRecorderResult {
+export function useAudioRecorder(
+  onAudioData: (pcmBuffer: ArrayBuffer) => void,
+): UseAudioRecorderResult {
   const [isRecording, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
-  
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -29,7 +31,8 @@ export function useAudioRecorder(onAudioData: (pcmBuffer: ArrayBuffer) => void):
       streamRef.current = stream;
 
       // Handle standard vs webkit AudioContext
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass =
+        window.AudioContext || (window as any).webkitAudioContext;
       const audioContext = new AudioContextClass();
       audioContextRef.current = audioContext;
 

@@ -35,7 +35,9 @@ export class SessionTrackerService implements SessionTracker {
       session.status = "disconnected";
       session.disconnectedAt = new Date();
     } else {
-      this.logger.warn(`Attempted to disconnect unregistered session [${sessionId}].`);
+      this.logger.warn(
+        `Attempted to disconnect unregistered session [${sessionId}].`,
+      );
     }
   }
 
@@ -54,18 +56,23 @@ export class SessionTrackerService implements SessionTracker {
     if (session) {
       const oldTokens = { ...session.tokens };
       session.tokens = {
-        promptTokenCount: tokens.promptTokenCount ?? session.tokens.promptTokenCount,
-        candidatesTokenCount: tokens.candidatesTokenCount ?? session.tokens.candidatesTokenCount,
-        totalTokenCount: tokens.totalTokenCount ?? session.tokens.totalTokenCount,
+        promptTokenCount:
+          tokens.promptTokenCount ?? session.tokens.promptTokenCount,
+        candidatesTokenCount:
+          tokens.candidatesTokenCount ?? session.tokens.candidatesTokenCount,
+        totalTokenCount:
+          tokens.totalTokenCount ?? session.tokens.totalTokenCount,
       };
       this.logger.log(
         `Updated tokens for session [${sessionId}]: ` +
-        `Prompt: ${oldTokens.promptTokenCount} -> ${session.tokens.promptTokenCount}, ` +
-        `Candidates: ${oldTokens.candidatesTokenCount} -> ${session.tokens.candidatesTokenCount}, ` +
-        `Total: ${oldTokens.totalTokenCount} -> ${session.tokens.totalTokenCount}`
+          `Prompt: ${oldTokens.promptTokenCount} -> ${session.tokens.promptTokenCount}, ` +
+          `Candidates: ${oldTokens.candidatesTokenCount} -> ${session.tokens.candidatesTokenCount}, ` +
+          `Total: ${oldTokens.totalTokenCount} -> ${session.tokens.totalTokenCount}`,
       );
     } else {
-      this.logger.warn(`Attempted to update tokens for unregistered session [${sessionId}].`);
+      this.logger.warn(
+        `Attempted to update tokens for unregistered session [${sessionId}].`,
+      );
     }
   }
 

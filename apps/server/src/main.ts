@@ -20,7 +20,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.getPort();
   await app.listen(port);
-  
+
   logger.log(`Puding WebSocket Proxy running on port ${port}`);
 }
 

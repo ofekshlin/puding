@@ -45,13 +45,18 @@ export class GeminiSession implements LiveSession {
     });
 
     this.geminiWs.on("close", (code, reason) => {
-      this.logger.log(`Gemini connection closed (code: ${code}, reason: ${reason.toString()})`);
+      this.logger.log(
+        `Gemini connection closed (code: ${code}, reason: ${reason.toString()})`,
+      );
       this.closeClient(1000, "Gemini session ended");
     });
 
     this.geminiWs.on("error", (error) => {
       this.logger.error("Gemini WebSocket error:", error);
-      this.sendToClient({ type: "content", text: "[System Error: Gemini connection failed]" });
+      this.sendToClient({
+        type: "content",
+        text: "[System Error: Gemini connection failed]",
+      });
       this.closeClient(1011, "Gemini connection error");
     });
   }
@@ -65,7 +70,10 @@ export class GeminiSession implements LiveSession {
       const response = JSON.parse(rawText) as GeminiServerMessage;
 
       if (response.usageMetadata) {
-        this.sessionTracker.updateTokens(this.sessionId, response.usageMetadata);
+        this.sessionTracker.updateTokens(
+          this.sessionId,
+          response.usageMetadata,
+        );
       }
 
       if (response.setupComplete) {
@@ -131,7 +139,9 @@ export class GeminiSession implements LiveSession {
       setup: {
         model: config.model || "models/gemini-3.1-flash-live-preview",
         generationConfig: {
-          responseModalities: config.generationConfig?.responseModalities || ["AUDIO"],
+          responseModalities: config.generationConfig?.responseModalities || [
+            "AUDIO",
+          ],
           speechConfig: config.generationConfig?.speechConfig,
         },
         systemInstruction: config.systemInstruction
@@ -177,7 +187,10 @@ export class GeminiSession implements LiveSession {
    * Cleans up the Gemini connection.
    */
   public destroy(): void {
-    if (this.geminiWs.readyState === WebSocket.OPEN || this.geminiWs.readyState === WebSocket.CONNECTING) {
+    if (
+      this.geminiWs.readyState === WebSocket.OPEN ||
+      this.geminiWs.readyState === WebSocket.CONNECTING
+    ) {
       this.logger.log("Closing active Gemini connection...");
       this.geminiWs.close(1000, "Client session terminated");
     }

@@ -35,7 +35,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   }
 
   return (
-    <div style={{ display: "flex", gap: "1rem", width: "100%", justifyContent: "center" }}>
+    <div
+      style={{
+        display: "flex",
+        gap: "1rem",
+        width: "100%",
+        justifyContent: "center",
+      }}
+    >
       <button
         onClick={onToggleRecording}
         className={`btn ${isRecording ? "btn-secondary" : "btn-primary"}`}
@@ -43,7 +50,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       >
         {isRecording ? "Mute Mic" : "Unmute Mic"}
       </button>
-      <button onClick={onDisconnect} className="btn btn-secondary" style={{ flex: 1 }}>
+      <button
+        onClick={onDisconnect}
+        className="btn btn-secondary"
+        style={{ flex: 1 }}
+      >
         Disconnect
       </button>
     </div>
