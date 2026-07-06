@@ -1,6 +1,9 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ProxyGateway } from "./proxy.gateway";
-import { LiveSessionService, LiveSession } from "../session/live-session.service";
+import {
+  LiveSessionService,
+  LiveSession,
+} from "../session/live-session.service";
 import { ConfigService } from "../config/config.service";
 import { SessionTracker } from "../session/session-tracker.interface";
 import WebSocket from "ws";
@@ -108,7 +111,9 @@ describe("ProxyGateway (Unit)", () => {
     // Simulate receiving a setup text message
     mockSocket.emit("message", Buffer.from(setupPayload), false);
 
-    expect(mockLiveSession.sendSetup).toHaveBeenCalledWith({ model: "test-model" });
+    expect(mockLiveSession.sendSetup).toHaveBeenCalledWith({
+      model: "test-model",
+    });
   });
 
   it("should relay client content message", () => {
@@ -127,7 +132,9 @@ describe("ProxyGateway (Unit)", () => {
     // Simulate receiving a client_content text message
     mockSocket.emit("message", Buffer.from(contentPayload), false);
 
-    expect(mockLiveSession.sendClientContent).toHaveBeenCalledWith({ turns: [] });
+    expect(mockLiveSession.sendClientContent).toHaveBeenCalledWith({
+      turns: [],
+    });
   });
 
   it("should relay raw binary audio data", () => {

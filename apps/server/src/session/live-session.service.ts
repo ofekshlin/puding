@@ -8,7 +8,7 @@ import { LiveSession } from "./live-session.interface";
 export abstract class LiveSessionService {
   /**
    * Spawns a stateful, isolated live model session.
-   * 
+   *
    * @param clientWs WebSocket connection from the client.
    * @param apiKey The API key for the live model provider.
    * @param sessionId A unique identifier for the session.

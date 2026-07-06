@@ -57,7 +57,10 @@ const INTEGRATION_RENDERERS: Record<string, React.FC<IntegrationCardProps>> = {
   notion: NotionCard,
 };
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isThinking }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({
+  messages,
+  isThinking,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -92,11 +95,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isThinking }) 
                 </div>
                 <div className="chat-message-text">
                   {msg.text}
-                  {msg.isStreaming && <span className="streaming-cursor">|</span>}
+                  {msg.isStreaming && (
+                    <span className="streaming-cursor">|</span>
+                  )}
                 </div>
                 {msg.integration && (
                   <div className="chat-message-integration">
-                    {renderIntegrationCard(msg.integration.type, msg.integration.data)}
+                    {renderIntegrationCard(
+                      msg.integration.type,
+                      msg.integration.data,
+                    )}
                   </div>
                 )}
                 <div className="chat-message-time">{msg.timestamp}</div>

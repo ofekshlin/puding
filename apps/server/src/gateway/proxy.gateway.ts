@@ -5,7 +5,10 @@ import {
 } from "@nestjs/websockets";
 import WebSocket from "ws";
 import { IncomingMessage } from "http";
-import { LiveSessionService, LiveSession } from "../session/live-session.service";
+import {
+  LiveSessionService,
+  LiveSession,
+} from "../session/live-session.service";
 import { ConfigService } from "../config/config.service";
 import { Logger, Inject } from "@nestjs/common";
 import { ClientMessage } from "../types";
@@ -18,7 +21,8 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly sessions = new Map<WebSocket, LiveSession>();
 
   constructor(
-    @Inject(LiveSessionService) private readonly liveSessionService: LiveSessionService,
+    @Inject(LiveSessionService)
+    private readonly liveSessionService: LiveSessionService,
     @Inject(ConfigService) private readonly configService: ConfigService,
     @Inject(SessionTracker) private readonly sessionTracker: SessionTracker,
   ) {}
@@ -33,14 +37,20 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const apiKey = this.configService.getGeminiApiKey();
     if (!apiKey) {
-      this.logger.error(`Rejecting connection [${sessionId}] due to missing GEMINI_API_KEY config.`);
+      this.logger.error(
+        `Rejecting connection [${sessionId}] due to missing GEMINI_API_KEY config.`,
+      );
       client.close(1011, "Server API key configuration missing");
       return;
     }
 
     this.sessionTracker.registerSession(sessionId, clientIp || "unknown");
 
-    const session = this.liveSessionService.createSession(client, apiKey, sessionId);
+    const session = this.liveSessionService.createSession(
+      client,
+      apiKey,
+      sessionId,
+    );
     this.sessions.set(client, session);
 
     // Bind event listener directly to socket to support raw PCM binary streaming
@@ -67,7 +77,11 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /**
    * Dispatches client messages (binary PCM streaming vs JSON handshakes) to the Gemini session.
    */
-  private handleClientMessage(client: WebSocket, data: WebSocket.Data, isBinary: boolean): void {
+  private handleClientMessage(
+    client: WebSocket,
+    data: WebSocket.Data,
+    isBinary: boolean,
+  ): void {
     const session = this.sessions.get(client);
     if (!session) return;
 
@@ -78,7 +92,11 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const textPayload = data.toString();
         const clientMsg = JSON.parse(textPayload) as ClientMessage;
 
-        if (typeof clientMsg === "object" && clientMsg !== null && "type" in clientMsg) {
+        if (
+          typeof clientMsg === "object" &&
+          clientMsg !== null &&
+          "type" in clientMsg
+        ) {
           if (clientMsg.type === "setup") {
             session.sendSetup(clientMsg.config);
           } else if (clientMsg.type === "client_content") {

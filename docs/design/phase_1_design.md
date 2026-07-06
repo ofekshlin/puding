@@ -1,6 +1,7 @@
 # Phase 1 Design: Core Voice Infrastructure & WebSocket Bridge
 
 ## 1. Overview
+
 This phase establishes the foundational real-time communication between the client (PWA) and the Gemini 2.0 Flash Multimodal Live API via a Node.js backend proxy. The primary goal is establishing full-duplex WebSocket connections, client-side 16kHz PCM audio capture, server-side streaming proxying to the Gemini API, and low-latency gapless 24kHz audio playback with interruption (barge-in) handling.
 
 Target latency: **< 500ms** round-trip.
@@ -49,6 +50,7 @@ puding/
 ## 3. Detailed Component Designs
 
 ### 3.1 TSConfig package (`packages/tsconfig`)
+
 To ensure strict typing and consistent compilation behavior across the monorepo, we define a base TypeScript configuration in `packages/tsconfig`.
 
 - **`base.json`**:
@@ -56,6 +58,7 @@ To ensure strict typing and consistent compilation behavior across the monorepo,
   - Sets `target` to `ES2022` and `module` resolution to `bundler`/`node16`.
 
 ### 3.2 Backend WebSocket Proxy (`apps/server`)
+
 The server acts as an orchestrator and security barrier. It keeps the Google Gemini API key secure on the server.
 
 - **Technology Stack**: Node.js, TypeScript, `ws` library for fast WebSocket server implementation, `dotenv` for env configuration.
@@ -142,6 +145,7 @@ The server acts as an orchestrator and security barrier. It keeps the Google Gem
 ### 3.3 Frontend Audio Capture (`apps/web`)
 
 To record low-latency, high-fidelity audio without UI blockages:
+
 - **Audio Recorder Hook (`useAudioRecorder.ts`)**:
   - Request user microphone permission via `navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 48000 } })`.
   - Create an `AudioContext`.
@@ -158,6 +162,7 @@ To record low-latency, high-fidelity audio without UI blockages:
 ### 3.4 Audio Playback & Interruption
 
 To achieve gapless audio playback and immediate interruption:
+
 - **Audio Player Hook (`useAudioPlayer.ts`)**:
   - Maintain a queue of incoming **24kHz 16-bit LE PCM** chunks.
   - Playback via `Web Audio API`'s `AudioContext`.
@@ -172,6 +177,7 @@ To achieve gapless audio playback and immediate interruption:
 ## 4. Stage-by-Stage Implementation Tasks
 
 ### Stage 1.2: Frontend Audio Capture (Current Stage)
+
 1. Add `manifest.json` and basic PWA setup (viewport, theme settings) in `apps/web/public/manifest.json`.
 2. Implement global CSS file `apps/web/src/app/globals.css` featuring premium dark-mode styling, Outfit/Inter typography, and subtle micro-animations for interactive elements.
 3. Implement `apps/web/public/workers/audio-processor.js` to run in the audio thread, accumulate float samples, downsample them from the source rate to 16kHz, and forward them back to the main thread.
@@ -181,6 +187,7 @@ To achieve gapless audio playback and immediate interruption:
 ---
 
 ### Stage 1.3: Audio Playback & Interruption (Upcoming Stage)
+
 1. Implement the `apps/web/src/hooks/useAudioPlayer.ts` player hook.
 2. Queue incoming 24kHz audio chunks and decode them back-to-back into `Float32` arrays.
 3. Manage gapless scheduling on the `AudioContext` timeline.
@@ -191,15 +198,16 @@ To achieve gapless audio playback and immediate interruption:
 ## 5. Success Criteria & Verification
 
 ### Stage 1.1
+
 - [x] **Monorepo setup**: Running `pnpm build` at root builds all packages successfully.
 - [x] **Relay connection**: Server connects to `generativelanguage.googleapis.com` Live API WebSocket.
 - [x] **Handshake verification**: Standard test client receives a `setup_complete` type message.
 - [x] **Data transmission**: Sending PCM-structured messages results in a clean response from Gemini.
 
 ### Stage 1.2
+
 - [x] **TypeScript Build**: `pnpm build` completes successfully without compilation errors.
 - [x] **PWA Baseline**: Web manifest loads properly and viewport is optimized for mobile display.
 - [x] **Downsampling Fidelity**: Audio capture downsamples microphone input to 16kHz LE PCM buffer.
 - [x] **Realtime Streaming**: Binary PCM audio streams successfully to the backend proxy WebSocket and is forwarded to Gemini without errors.
 - [x] **Visual Feedback**: Sleek interactive interface displaying real-time connection status and active mic input level.
-
