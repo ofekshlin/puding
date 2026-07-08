@@ -7,6 +7,7 @@ export class ConfigService {
   private readonly logger = new Logger(ConfigService.name);
   private readonly geminiApiKey: string;
   private readonly port: number;
+  private readonly notionToken: string;
 
   constructor() {
     // Resolve absolute path to apps/server/.env
@@ -15,6 +16,7 @@ export class ConfigService {
 
     this.geminiApiKey = process.env.GEMINI_API_KEY || "";
     this.port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+    this.notionToken = process.env.NOTION_TOKEN || "";
 
     if (!this.geminiApiKey) {
       this.logger.error(
@@ -35,5 +37,12 @@ export class ConfigService {
    */
   public getPort(): number {
     return this.port;
+  }
+
+  /**
+   * Retrieves the Notion integration token.
+   */
+  public getNotionToken(): string {
+    return this.notionToken;
   }
 }

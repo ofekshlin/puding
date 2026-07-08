@@ -11,7 +11,12 @@ export type ServerMessage =
       audio?: string; // Base64 encoded 24kHz PCM audio chunk
       userTranscription?: string;
       turnComplete?: boolean;
+      integration?: {
+        type: "notion" | "spotify";
+        data: any;
+      };
     }
   | {
       type: "interrupted";
     };
+

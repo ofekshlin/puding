@@ -18,6 +18,7 @@ export type GeminiClientMessage =
         systemInstruction?: {
           parts: Array<{ text: string }>;
         };
+        tools?: any[];
         inputAudioTranscription?: {
           model?: string;
         };
@@ -42,4 +43,14 @@ export type GeminiClientMessage =
           data: string; // Base64 PCM data
         };
       };
+    }
+  | {
+      toolResponse: {
+        functionResponses: Array<{
+          id: string;
+          name: string;
+          response: { output: any } | { error: string };
+        }>;
+      };
     };
+

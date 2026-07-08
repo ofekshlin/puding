@@ -8,6 +8,68 @@ import {
 } from "../types";
 import { LiveSession } from "../session/live-session.interface";
 import { SessionTracker } from "../session/session-tracker.interface";
+import { NotionService } from "../notion/notion.service";
+
+const NOTION_TOOLS = [
+  {
+    functionDeclarations: [
+      {
+        name: "read_notion_page",
+        description: "Reads content (text blocks) from a Notion page by its ID.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            page_id: {
+              type: "STRING",
+              description: "The Notion Page ID (UUID string without hyphens or with hyphens).",
+            },
+          },
+          required: ["page_id"],
+        },
+      },
+      {
+        name: "create_notion_page",
+        description: "Creates a new Notion page under a parent page or database ID with initial content.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            parent_id: {
+              type: "STRING",
+              description: "The Parent Page ID or Database ID under which to create the new page.",
+            },
+            title: {
+              type: "STRING",
+              description: "The title of the new Notion page.",
+            },
+            content: {
+              type: "STRING",
+              description: "The initial text content (markdown or plain text) to append into the new page.",
+            },
+          },
+          required: ["parent_id", "title"],
+        },
+      },
+      {
+        name: "write_notion_page",
+        description: "Appends text content or bullet points to an existing Notion page by its ID.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            page_id: {
+              type: "STRING",
+              description: "The ID of the Notion page to write content into.",
+            },
+            content: {
+              type: "STRING",
+              description: "The text content or bullet points to append to the page.",
+            },
+          },
+          required: ["page_id", "content"],
+        },
+      },
+    ],
+  },
+];
 
 export class GeminiSession implements LiveSession {
   private readonly logger: Logger;
@@ -20,6 +82,7 @@ export class GeminiSession implements LiveSession {
     private readonly apiKey: string,
     public readonly sessionId: string,
     private readonly sessionTracker: SessionTracker,
+    private readonly notionService: NotionService,
   ) {
     this.logger = new Logger(`${GeminiSession.name}[${sessionId}]`);
     const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
@@ -80,6 +143,10 @@ export class GeminiSession implements LiveSession {
         this.logger.log("Setup handshake confirmed by Gemini.");
         this.sendToClient({ type: "setup_complete" });
         return;
+      }
+
+      if (response.toolCall) {
+        this.handleToolCall(response.toolCall);
       }
 
       const content = response.serverContent;
@@ -149,12 +216,88 @@ export class GeminiSession implements LiveSession {
               parts: [{ text: config.systemInstruction }],
             }
           : undefined,
+        tools: NOTION_TOOLS,
         inputAudioTranscription: config.inputAudioTranscription,
         outputAudioTranscription: config.outputAudioTranscription,
       },
     };
 
     this.sendToGemini(JSON.stringify(geminiSetupMsg));
+  }
+
+  /**
+   * Processes a tool call from Gemini, executes it, and sends the response back.
+   */
+  private async handleToolCall(toolCall: NonNullable<GeminiServerMessage["toolCall"]>): Promise<void> {
+    const functionCalls = toolCall.functionCalls;
+    const functionResponses: any[] = [];
+
+    for (const call of functionCalls) {
+      try {
+        this.logger.log(`Executing tool call: ${call.name} (ID: ${call.id})`);
+        let output: any;
+
+        if (call.name === "read_notion_page") {
+          output = await this.notionService.readPage(call.args.page_id);
+        } else if (call.name === "create_notion_page") {
+          output = await this.notionService.createPage(
+            call.args.parent_id,
+            call.args.title,
+            call.args.content || "",
+          );
+          // Notify client to show the Notion Card
+          this.sendToClient({
+            type: "content",
+            integration: {
+              type: "notion",
+              data: {
+                title: output.title,
+                summary: output.summary,
+              },
+            },
+          });
+        } else if (call.name === "write_notion_page") {
+          output = await this.notionService.writePage(
+            call.args.page_id,
+            call.args.content,
+          );
+          // Notify client to show the Notion Card
+          this.sendToClient({
+            type: "content",
+            integration: {
+              type: "notion",
+              data: {
+                title: output.title,
+                summary: output.summary,
+              },
+            },
+          });
+        } else {
+          throw new Error(`Unknown tool: ${call.name}`);
+        }
+
+        functionResponses.push({
+          id: call.id,
+          name: call.name,
+          response: { output },
+        });
+      } catch (err: any) {
+        this.logger.error(`Error executing tool ${call.name}:`, err);
+        functionResponses.push({
+          id: call.id,
+          name: call.name,
+          response: { error: err.message || "Failed to execute tool" },
+        });
+      }
+    }
+
+    // Send responses back to Gemini Live API
+    const responsePayload = {
+      toolResponse: {
+        functionResponses,
+      },
+    };
+    this.sendToGemini(JSON.stringify(responsePayload));
   }
 
   /**

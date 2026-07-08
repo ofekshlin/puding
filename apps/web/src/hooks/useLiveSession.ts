@@ -169,6 +169,22 @@ export function useLiveSession(): UseLiveSessionResult {
             playChunk(msg.audio);
           }
 
+          if (msg.integration) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id:
+                  typeof crypto !== "undefined" && crypto.randomUUID
+                    ? crypto.randomUUID()
+                    : Math.random().toString(36).substring(2, 9),
+                sender: "puding",
+                text: "",
+                timestamp: new Date().toLocaleTimeString(),
+                integration: msg.integration,
+              },
+            ]);
+          }
+
           if (msg.turnComplete) {
             setMessages((prev) =>
               prev.map((m) =>
