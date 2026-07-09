@@ -15,27 +15,27 @@ const NOTION_TOOLS = [
     functionDeclarations: [
       {
         name: "read_notion_page",
-        description: "Reads content (text blocks) from a Notion page by its ID.",
+        description: "Reads content (text blocks) from a Notion page by its title or hierarchical path.",
         parameters: {
           type: "OBJECT",
           properties: {
-            page_id: {
+            page_identifier: {
               type: "STRING",
-              description: "The Notion Page ID (UUID string without hyphens or with hyphens).",
+              description: "The title or path of the Notion page, e.g., 'Music' or 'Busking List under Music'.",
             },
           },
-          required: ["page_id"],
+          required: ["page_identifier"],
         },
       },
       {
         name: "create_notion_page",
-        description: "Creates a new Notion page under a parent page or database ID with initial content.",
+        description: "Creates a new Notion page under a parent page or database title with initial content.",
         parameters: {
           type: "OBJECT",
           properties: {
-            parent_id: {
+            parent_identifier: {
               type: "STRING",
-              description: "The Parent Page ID or Database ID under which to create the new page.",
+              description: "The parent page or database title or path, e.g., 'Music'.",
             },
             title: {
               type: "STRING",
@@ -46,25 +46,25 @@ const NOTION_TOOLS = [
               description: "The initial text content (markdown or plain text) to append into the new page.",
             },
           },
-          required: ["parent_id", "title"],
+          required: ["parent_identifier", "title"],
         },
       },
       {
         name: "write_notion_page",
-        description: "Appends text content or bullet points to an existing Notion page by its ID.",
+        description: "Appends text content or bullet points to an existing Notion page by its title or path.",
         parameters: {
           type: "OBJECT",
           properties: {
-            page_id: {
+            page_identifier: {
               type: "STRING",
-              description: "The ID of the Notion page to write content into.",
+              description: "The title or path of the Notion page to write content into, e.g., 'Music/Busking List'.",
             },
             content: {
               type: "STRING",
               description: "The text content or bullet points to append to the page.",
             },
           },
-          required: ["page_id", "content"],
+          required: ["page_identifier", "content"],
         },
       },
     ],
@@ -238,10 +238,12 @@ export class GeminiSession implements LiveSession {
         let output: any;
 
         if (call.name === "read_notion_page") {
-          output = await this.notionService.readPage(call.args.page_id);
+          const pageId = await this.notionService.resolveId(call.args.page_identifier);
+          output = await this.notionService.readPage(pageId);
         } else if (call.name === "create_notion_page") {
+          const parentId = await this.notionService.resolveId(call.args.parent_identifier);
           output = await this.notionService.createPage(
-            call.args.parent_id,
+            parentId,
             call.args.title,
             call.args.content || "",
           );
@@ -257,8 +259,9 @@ export class GeminiSession implements LiveSession {
             },
           });
         } else if (call.name === "write_notion_page") {
+          const pageId = await this.notionService.resolveId(call.args.page_identifier);
           output = await this.notionService.writePage(
-            call.args.page_id,
+            pageId,
             call.args.content,
           );
           // Notify client to show the Notion Card

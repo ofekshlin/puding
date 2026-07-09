@@ -5,16 +5,89 @@ import { ConfigService } from "../config/config.service";
 @Injectable()
 export class NotionService {
   private readonly logger = new Logger(NotionService.name);
-  private readonly client: Client | null = null;
+  private readonly client: Client;
 
   constructor(@Inject(ConfigService) private readonly configService: ConfigService) {
     const token = this.configService.getNotionToken();
-    if (token) {
-      this.client = new Client({ auth: token });
-      this.logger.log("Notion client initialized successfully.");
-    } else {
-      this.logger.warn("Notion token is missing. Notion operations will run in mock/dry-run mode.");
+    if (!token) {
+      throw new Error("NOTION_TOKEN is not defined in the environment. Notion integration requires a valid token.");
     }
+    this.client = new Client({ auth: token });
+    this.logger.log("Notion client initialized successfully.");
+  }
+
+  /**
+   * Resolves a human-readable page/database title or path to a Notion ID.
+   */
+  public async resolveId(identifier: string): Promise<string> {
+    const cleanId = identifier.trim();
+    this.logger.log(`Resolving identifier to Notion ID: "${cleanId}"`);
+
+    // Parse hierarchy
+    let targetTitle = cleanId;
+    let parentTitle: string | undefined;
+
+    if (cleanId.toLowerCase().includes(" under ")) {
+      const index = cleanId.toLowerCase().indexOf(" under ");
+      targetTitle = cleanId.substring(0, index).trim();
+      parentTitle = cleanId.substring(index + 7).trim();
+    } else if (cleanId.includes("/")) {
+      const parts = cleanId.split("/");
+      parentTitle = parts[0].trim();
+      targetTitle = parts[1].trim();
+    }
+
+    if (parentTitle) {
+      const parentId = await this.resolveId(parentTitle);
+      this.logger.log(`Searching for "${targetTitle}" under parent ID: ${parentId}`);
+
+      const searchResponse = await this.client.search({ query: targetTitle });
+
+      for (const result of searchResponse.results as any[]) {
+        const resultTitle = this.extractTitle(result);
+        if (resultTitle.toLowerCase() === targetTitle.toLowerCase()) {
+          const resultParentId = result.parent?.page_id || result.parent?.database_id;
+          if (resultParentId === parentId) {
+            this.logger.log(`Resolved "${cleanId}" to ID: ${result.id}`);
+            return result.id;
+          }
+        }
+      }
+
+      throw new Error(`Could not find page "${targetTitle}" under parent "${parentTitle}".`);
+    } else {
+      const searchResponse = await this.client.search({ query: targetTitle });
+      if (searchResponse.results.length === 0) {
+        throw new Error(`Could not find Notion page or database matching: "${targetTitle}"`);
+      }
+
+      // Try exact match first
+      for (const result of searchResponse.results as any[]) {
+        const resultTitle = this.extractTitle(result);
+        if (resultTitle.toLowerCase() === targetTitle.toLowerCase()) {
+          this.logger.log(`Resolved "${cleanId}" to ID: ${result.id}`);
+          return result.id;
+        }
+      }
+
+      // Fallback to first search result
+      const fallbackId = searchResponse.results[0].id;
+      this.logger.log(`No exact match for "${targetTitle}". Falling back to first search result: ${fallbackId}`);
+      return fallbackId;
+    }
+  }
+
+  /**
+   * Extracts the title text from a search result object (page or database).
+   */
+  private extractTitle(result: any): string {
+    if (result.object === "database") {
+      return result.title?.[0]?.plain_text || "Untitled Database";
+    } else if (result.object === "page") {
+      const titleProp = Object.values(result.properties).find((p: any) => p.type === "title") as any;
+      return titleProp?.title?.[0]?.plain_text || "Untitled Page";
+    }
+    return "Untitled";
   }
 
   /**
@@ -23,16 +96,6 @@ export class NotionService {
    */
   public async readPage(pageId: string): Promise<{ title: string; content: string; summary: string }> {
     this.logger.log(`Reading Notion page: ${pageId}`);
-
-    if (!this.client) {
-      // Mock / Dry-run implementation
-      this.logger.log("[Mock Mode] Simulated reading page content.");
-      return {
-        title: "Mock Notion Page",
-        content: "This is a simulated Notion page content for dry-run verification.",
-        summary: `Successfully read mock page: ${pageId}`,
-      };
-    }
 
     try {
       // 1. Retrieve page metadata to get the title
@@ -72,18 +135,6 @@ export class NotionService {
     content: string,
   ): Promise<{ id: string; url: string; title: string; summary: string }> {
     this.logger.log(`Creating Notion page "${title}" under parent: ${parentId}`);
-
-    if (!this.client) {
-      // Mock / Dry-run implementation
-      this.logger.log("[Mock Mode] Simulated creating page.");
-      const mockId = `mock-${Math.random().toString(36).substring(2, 10)}`;
-      return {
-        id: mockId,
-        url: `https://notion.so/${mockId}`,
-        title,
-        summary: `Created page "${title}" under parent ${parentId} (Mock Mode)`,
-      };
-    }
 
     try {
       // Determine if parent is database or page
@@ -137,16 +188,6 @@ export class NotionService {
     content: string,
   ): Promise<{ id: string; title: string; summary: string }> {
     this.logger.log(`Writing content to Notion page: ${pageId}`);
-
-    if (!this.client) {
-      // Mock / Dry-run implementation
-      this.logger.log("[Mock Mode] Simulated appending content.");
-      return {
-        id: pageId,
-        title: "Mock Notion Page",
-        summary: `Appended content to page ${pageId} (Mock Mode)`,
-      };
-    }
 
     try {
       // 1. Retrieve page metadata to get the title
