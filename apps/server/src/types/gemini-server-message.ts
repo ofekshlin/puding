@@ -35,4 +35,3 @@ export interface GeminiServerMessage {
     totalTokenCount?: number;
   };
 }
-

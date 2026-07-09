@@ -3,13 +3,15 @@
 ## 1. Overview
 
 Currently, Puding's Notion tools require the user/AI to specify exact 32-character hexadecimal `page_id` or `parent_id` strings (e.g., `create_notion_page(parent_id: "...")`). During natural voice or text conversations, users refer to pages by their human-readable names or paths, such as:
-- *"Please read the Music page"*
-- *"Append a note to the Busking List page under Music"*
-- *"Create a page named Grocery List under Shopping"*
+
+- _"Please read the Music page"_
+- _"Append a note to the Busking List page under Music"_
+- _"Create a page named Grocery List under Shopping"_
 
 To support this, we will upgrade `NotionService` to accept queries containing page titles and hierarchical relationships (e.g. using "under" or "/") and dynamically resolve them to Notion Page IDs on the backend using the Notion Search API.
 
 **Key updates based on feedback:**
+
 1. Assume the input will always be a human-readable title or path (no UUID checks).
 2. Remove all mock/dry-run capabilities; Notion Service operates exclusively with a valid Notion client.
 
@@ -20,6 +22,7 @@ To support this, we will upgrade `NotionService` to accept queries containing pa
 We will implement a page resolution engine within `NotionService` that parses natural language identifiers and resolves them to exact Notion IDs.
 
 ### 2.1 Identifier Formats Supported
+
 1. **Simple Title:** E.g., `"Music"`. Matches pages or databases named "Music".
 2. **Hierarchical Title (Child under Parent):**
    - **`"Child Page under Parent Page"`**: E.g., `"Busking List under Music"`.
@@ -32,13 +35,13 @@ We will introduce a recursive helper `resolveId(identifier: string): Promise<str
 ```mermaid
 graph TD
     A[Start Resolution] --> D{Does it contain hierarchy? <br> 'under' or '/'}
-    
+
     D -- Yes --> E[Split into targetTitle and parentTitle]
     E --> F[Recursively resolve parentTitle to parentId]
     F --> G[Search Notion for targetTitle]
     G --> H[Filter results where parent ID equals parentId]
     H --> I[Return matching ID]
-    
+
     D -- No --> J[Search Notion for identifier]
     J --> K[Return first matched ID]
 ```
@@ -75,10 +78,10 @@ public async resolveId(identifier: string): Promise<string> {
   // 2. Recursive Resolution
   if (parentTitle) {
     const parentId = await this.resolveId(parentTitle);
-    
+
     // Search matching target titles
     const searchResponse = await this.client.search({ query: targetTitle });
-    
+
     for (const result of searchResponse.results as any[]) {
       // Extract title based on object type
       const resultTitle = this.extractTitle(result);
@@ -89,7 +92,7 @@ public async resolveId(identifier: string): Promise<string> {
         }
       }
     }
-    
+
     throw new Error(`Could not find page "${targetTitle}" under parent "${parentTitle}".`);
   } else {
     // Search matching target title
@@ -130,13 +133,13 @@ private extractTitle(result: any): string {
 We will update the tool definitions in [gemini.session.ts](file:///Users/ofekshlinger/Development/puding/apps/server/src/gemini/gemini.session.ts) to rename the input arguments and update descriptions. This instructs Gemini to supply titles or paths (e.g. `"Music"`, `"Busking List under Music"`) instead of IDs:
 
 - `read_notion_page`:
-  - Parameter: `page_identifier: string` (description: *"The Notion page title or path, e.g. 'Music' or 'Busking List under Music'."*)
+  - Parameter: `page_identifier: string` (description: _"The Notion page title or path, e.g. 'Music' or 'Busking List under Music'."_)
 - `create_notion_page`:
-  - Parameter: `parent_identifier: string` (description: *"The parent page title or path under which to create the new page, e.g. 'Music'."*)
+  - Parameter: `parent_identifier: string` (description: _"The parent page title or path under which to create the new page, e.g. 'Music'."_)
   - Parameter: `title: string`
   - Parameter: `content: string`
 - `write_notion_page`:
-  - Parameter: `page_identifier: string` (description: *"The Notion Page title or path to write content to, e.g. 'Music/Busking List'."*)
+  - Parameter: `page_identifier: string` (description: _"The Notion Page title or path to write content to, e.g. 'Music/Busking List'."_)
   - Parameter: `content: string`
 
 ### 3.3 Tool Execution Loop Update
@@ -148,7 +151,9 @@ if (call.name === "read_notion_page") {
   const pageId = await this.notionService.resolveId(call.args.page_identifier);
   output = await this.notionService.readPage(pageId);
 } else if (call.name === "create_notion_page") {
-  const parentId = await this.notionService.resolveId(call.args.parent_identifier);
+  const parentId = await this.notionService.resolveId(
+    call.args.parent_identifier,
+  );
   output = await this.notionService.createPage(
     parentId,
     call.args.title,
@@ -157,10 +162,7 @@ if (call.name === "read_notion_page") {
   // Send client card...
 } else if (call.name === "write_notion_page") {
   const pageId = await this.notionService.resolveId(call.args.page_identifier);
-  output = await this.notionService.writePage(
-    pageId,
-    call.args.content,
-  );
+  output = await this.notionService.writePage(pageId, call.args.content);
   // Send client card...
 }
 ```

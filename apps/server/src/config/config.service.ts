@@ -10,10 +10,7 @@ export class ConfigService {
   private readonly notionToken: string;
 
   // Define required environment variables here for easy extension
-  private readonly requiredEnvVars = [
-    "GEMINI_API_KEY",
-    "NOTION_TOKEN",
-  ];
+  private readonly requiredEnvVars = ["GEMINI_API_KEY", "NOTION_TOKEN"];
 
   constructor() {
     // Resolve absolute path to apps/server/.env
@@ -29,7 +26,7 @@ export class ConfigService {
 
   private validateConfig(envPath: string): void {
     const missingVars = this.requiredEnvVars.filter(
-      (envVar) => !process.env[envVar]
+      (envVar) => !process.env[envVar],
     );
 
     if (missingVars.length > 0) {

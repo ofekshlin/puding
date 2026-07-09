@@ -7,10 +7,14 @@ export class NotionService {
   private readonly logger = new Logger(NotionService.name);
   private readonly client: Client;
 
-  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {
+  constructor(
+    @Inject(ConfigService) private readonly configService: ConfigService,
+  ) {
     const token = this.configService.getNotionToken();
     if (!token) {
-      throw new Error("NOTION_TOKEN is not defined in the environment. Notion integration requires a valid token.");
+      throw new Error(
+        "NOTION_TOKEN is not defined in the environment. Notion integration requires a valid token.",
+      );
     }
     this.client = new Client({ auth: token });
     this.logger.log("Notion client initialized successfully.");
@@ -39,14 +43,17 @@ export class NotionService {
 
     if (parentTitle) {
       const parentId = await this.resolveId(parentTitle);
-      this.logger.log(`Searching for "${targetTitle}" under parent ID: ${parentId}`);
+      this.logger.log(
+        `Searching for "${targetTitle}" under parent ID: ${parentId}`,
+      );
 
       const searchResponse = await this.client.search({ query: targetTitle });
 
       for (const result of searchResponse.results as any[]) {
         const resultTitle = this.extractTitle(result);
         if (resultTitle.toLowerCase() === targetTitle.toLowerCase()) {
-          const resultParentId = result.parent?.page_id || result.parent?.database_id;
+          const resultParentId =
+            result.parent?.page_id || result.parent?.database_id;
           if (resultParentId === parentId) {
             this.logger.log(`Resolved "${cleanId}" to ID: ${result.id}`);
             return result.id;
@@ -54,11 +61,15 @@ export class NotionService {
         }
       }
 
-      throw new Error(`Could not find page "${targetTitle}" under parent "${parentTitle}".`);
+      throw new Error(
+        `Could not find page "${targetTitle}" under parent "${parentTitle}".`,
+      );
     } else {
       const searchResponse = await this.client.search({ query: targetTitle });
       if (searchResponse.results.length === 0) {
-        throw new Error(`Could not find Notion page or database matching: "${targetTitle}"`);
+        throw new Error(
+          `Could not find Notion page or database matching: "${targetTitle}"`,
+        );
       }
 
       // Try exact match first
@@ -72,7 +83,9 @@ export class NotionService {
 
       // Fallback to first search result
       const fallbackId = searchResponse.results[0].id;
-      this.logger.log(`No exact match for "${targetTitle}". Falling back to first search result: ${fallbackId}`);
+      this.logger.log(
+        `No exact match for "${targetTitle}". Falling back to first search result: ${fallbackId}`,
+      );
       return fallbackId;
     }
   }
@@ -84,7 +97,9 @@ export class NotionService {
     if (result.object === "database") {
       return result.title?.[0]?.plain_text || "Untitled Database";
     } else if (result.object === "page") {
-      const titleProp = Object.values(result.properties).find((p: any) => p.type === "title") as any;
+      const titleProp = Object.values(result.properties).find(
+        (p: any) => p.type === "title",
+      ) as any;
       return titleProp?.title?.[0]?.plain_text || "Untitled Page";
     }
     return "Untitled";
@@ -94,22 +109,32 @@ export class NotionService {
    * Reads blocks and page metadata from Notion.
    * Returns a markdown or structured text summary of the page content.
    */
-  public async readPage(pageId: string): Promise<{ title: string; content: string; summary: string }> {
+  public async readPage(
+    pageId: string,
+  ): Promise<{ title: string; content: string; summary: string }> {
     this.logger.log(`Reading Notion page: ${pageId}`);
 
     try {
       // 1. Retrieve page metadata to get the title
-      const pageResponse = (await this.client.pages.retrieve({ page_id: pageId })) as any;
-      const titleProp = Object.values(pageResponse.properties).find((p: any) => p.type === "title") as any;
+      const pageResponse = (await this.client.pages.retrieve({
+        page_id: pageId,
+      })) as any;
+      const titleProp = Object.values(pageResponse.properties).find(
+        (p: any) => p.type === "title",
+      ) as any;
       const title = titleProp?.title?.[0]?.plain_text || "Untitled Page";
 
       // 2. Retrieve page blocks content
-      const blocksResponse = await this.client.blocks.children.list({ block_id: pageId });
+      const blocksResponse = await this.client.blocks.children.list({
+        block_id: pageId,
+      });
       let content = "";
       for (const block of blocksResponse.results as any[]) {
         const type = block.type;
         if (block[type]?.rich_text) {
-          const text = block[type].rich_text.map((t: any) => t.plain_text).join("");
+          const text = block[type].rich_text
+            .map((t: any) => t.plain_text)
+            .join("");
           content += text + "\n";
         }
       }
@@ -121,7 +146,9 @@ export class NotionService {
         summary: `Read page: "${title}"`,
       };
     } catch (error: any) {
-      this.logger.error(`Failed to read Notion page: ${error.message || error}`);
+      this.logger.error(
+        `Failed to read Notion page: ${error.message || error}`,
+      );
       throw error;
     }
   }
@@ -134,7 +161,9 @@ export class NotionService {
     title: string,
     content: string,
   ): Promise<{ id: string; url: string; title: string; summary: string }> {
-    this.logger.log(`Creating Notion page "${title}" under parent: ${parentId}`);
+    this.logger.log(
+      `Creating Notion page "${title}" under parent: ${parentId}`,
+    );
 
     try {
       // Determine if parent is database or page
@@ -167,7 +196,9 @@ export class NotionService {
           : [],
       })) as any;
 
-      this.logger.log(`Created page "${title}" (ID: ${response.id}) successfully.`);
+      this.logger.log(
+        `Created page "${title}" (ID: ${response.id}) successfully.`,
+      );
       return {
         id: response.id,
         url: response.url,
@@ -175,7 +206,9 @@ export class NotionService {
         summary: `Created page "${title}" successfully`,
       };
     } catch (error: any) {
-      this.logger.error(`Failed to create Notion page: ${error.message || error}`);
+      this.logger.error(
+        `Failed to create Notion page: ${error.message || error}`,
+      );
       throw error;
     }
   }
@@ -191,8 +224,12 @@ export class NotionService {
 
     try {
       // 1. Retrieve page metadata to get the title
-      const pageResponse = (await this.client.pages.retrieve({ page_id: pageId })) as any;
-      const titleProp = Object.values(pageResponse.properties).find((p: any) => p.type === "title") as any;
+      const pageResponse = (await this.client.pages.retrieve({
+        page_id: pageId,
+      })) as any;
+      const titleProp = Object.values(pageResponse.properties).find(
+        (p: any) => p.type === "title",
+      ) as any;
       const title = titleProp?.title?.[0]?.plain_text || "Untitled Page";
 
       // 2. Append block content
@@ -216,7 +253,9 @@ export class NotionService {
         summary: `Appended content to page "${title}"`,
       };
     } catch (error: any) {
-      this.logger.error(`Failed to write to Notion page: ${error.message || error}`);
+      this.logger.error(
+        `Failed to write to Notion page: ${error.message || error}`,
+      );
       throw error;
     }
   }

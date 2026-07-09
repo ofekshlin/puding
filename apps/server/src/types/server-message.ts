@@ -19,4 +19,3 @@ export type ServerMessage =
   | {
       type: "interrupted";
     };
-

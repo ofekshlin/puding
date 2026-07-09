@@ -3,10 +3,7 @@ import { useAudioRecorder } from "./useAudioRecorder";
 import { useAudioPlayer } from "./useAudioPlayer";
 
 export type ConnectionStatus =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "failed";
+  "disconnected" | "connecting" | "connected" | "failed";
 
 export interface ChatMessage {
   id: string;

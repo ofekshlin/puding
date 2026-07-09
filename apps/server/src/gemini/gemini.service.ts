@@ -6,7 +6,7 @@ import {
   LiveSession,
 } from "../session/live-session.service";
 import { SessionTracker } from "../session/session-tracker.interface";
-import { NotionService } from "../notion/notion.service";
+import { GeminiTool } from "./gemini-tool.interface";
 
 @Injectable()
 export class GeminiService extends LiveSessionService {
@@ -14,7 +14,7 @@ export class GeminiService extends LiveSessionService {
 
   constructor(
     @Inject(SessionTracker) private readonly sessionTracker: SessionTracker,
-    @Inject(NotionService) private readonly notionService: NotionService,
+    @Inject("GEMINI_TOOLS") private readonly tools: GeminiTool[],
   ) {
     super();
   }
@@ -37,8 +37,7 @@ export class GeminiService extends LiveSessionService {
       apiKey,
       sessionId,
       this.sessionTracker,
-      this.notionService,
+      this.tools,
     );
   }
 }
-

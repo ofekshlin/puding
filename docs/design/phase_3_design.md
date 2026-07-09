@@ -5,6 +5,7 @@
 This phase introduces Notion integration into Puding, enabling the AI agent to interact directly with the user's Notion workspace. By connecting to Notion's API, Puding will be able to read page contents, append new text content to existing pages, and create new pages.
 
 Key requirements:
+
 1. **Security & Isolation:** The Notion SDK and active Integration Tokens must reside strictly on the server side and never be exposed to the client.
 2. **Simplified Service Architecture:** Define `NotionService` as a direct NestJS Injectable service. This avoids unnecessary interface/class splits while preserving standard NestJS dependency injection.
 3. **Function Calling over WebSocket:** Register Notion tools (`read_notion_page`, `create_notion_page`, `write_notion_page`) in the Gemini Live API initialization.
@@ -49,6 +50,7 @@ puding/
 `NotionService` will be defined as an injectable class directly, acting as its own NestJS injection token.
 
 ### 3.1 Notion Service (`notion.service.ts`)
+
 Implement the service using `@notionhq/client`:
 
 ```typescript
@@ -67,7 +69,9 @@ export class NotionService {
       this.client = new Client({ auth: token });
       this.logger.log("Notion client initialized successfully.");
     } else {
-      this.logger.warn("Notion token is missing. Notion operations will run in mock/dry-run mode.");
+      this.logger.warn(
+        "Notion token is missing. Notion operations will run in mock/dry-run mode.",
+      );
     }
   }
 
@@ -75,7 +79,9 @@ export class NotionService {
    * Reads blocks and page metadata from Notion.
    * Returns a markdown or structured text summary of the page content.
    */
-  public async readPage(pageId: string): Promise<{ title: string; content: string; summary: string }> {
+  public async readPage(
+    pageId: string,
+  ): Promise<{ title: string; content: string; summary: string }> {
     // ...
   }
 
@@ -122,6 +128,7 @@ export class NotionModule {}
 We will update the Gemini Live API initializer to pass tool declarations during setup.
 
 ### 4.1 Schema Definition
+
 We define the function parameters and descriptions using the Gemini schema format:
 
 ```typescript
@@ -130,13 +137,15 @@ const NOTION_TOOLS = [
     functionDeclarations: [
       {
         name: "read_notion_page",
-        description: "Reads content (text blocks) from a Notion page by its ID.",
+        description:
+          "Reads content (text blocks) from a Notion page by its ID.",
         parameters: {
           type: "OBJECT",
           properties: {
             page_id: {
               type: "STRING",
-              description: "The Notion Page ID (UUID string without hyphens or with hyphens).",
+              description:
+                "The Notion Page ID (UUID string without hyphens or with hyphens).",
             },
           },
           required: ["page_id"],
@@ -144,13 +153,15 @@ const NOTION_TOOLS = [
       },
       {
         name: "create_notion_page",
-        description: "Creates a new Notion page under a parent page or database ID with initial content.",
+        description:
+          "Creates a new Notion page under a parent page or database ID with initial content.",
         parameters: {
           type: "OBJECT",
           properties: {
             parent_id: {
               type: "STRING",
-              description: "The Parent Page ID or Database ID under which to create the new page.",
+              description:
+                "The Parent Page ID or Database ID under which to create the new page.",
             },
             title: {
               type: "STRING",
@@ -158,7 +169,8 @@ const NOTION_TOOLS = [
             },
             content: {
               type: "STRING",
-              description: "The initial text content (markdown or plain text) to append into the new page.",
+              description:
+                "The initial text content (markdown or plain text) to append into the new page.",
             },
           },
           required: ["parent_id", "title"],
@@ -166,7 +178,8 @@ const NOTION_TOOLS = [
       },
       {
         name: "write_notion_page",
-        description: "Appends text content or bullet points to an existing Notion page by its ID.",
+        description:
+          "Appends text content or bullet points to an existing Notion page by its ID.",
         parameters: {
           type: "OBJECT",
           properties: {
@@ -176,7 +189,8 @@ const NOTION_TOOLS = [
             },
             content: {
               type: "STRING",
-              description: "The text content or bullet points to append to the page.",
+              description:
+                "The text content or bullet points to append to the page.",
             },
           },
           required: ["page_id", "content"],
@@ -197,6 +211,7 @@ We will inject `tools: NOTION_TOOLS` into the setup configuration sent by `Gemin
 
 - **`gemini-server-message.ts`**:
   Extend `GeminiServerMessage` to parse tool calls sent by Gemini:
+
   ```typescript
   export interface GeminiServerMessage {
     // ... other fields
@@ -212,6 +227,7 @@ We will inject `tools: NOTION_TOOLS` into the setup configuration sent by `Gemin
 
 - **`gemini-client-message.ts`**:
   Extend `GeminiClientMessage` to support tool responses and tools initialization:
+
   ```typescript
   export type GeminiClientMessage =
     | {
@@ -281,12 +297,15 @@ if (msg.integration) {
   setMessages((prev) => [
     ...prev,
     {
-      id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
+      id:
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : Math.random().toString(36).substring(2, 9),
       sender: "puding",
       text: "", // Renders integration card instead of plain text
       timestamp: new Date().toLocaleTimeString(),
       integration: msg.integration,
-    }
+    },
   ]);
 }
 ```

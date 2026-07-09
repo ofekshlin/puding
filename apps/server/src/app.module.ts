@@ -6,6 +6,12 @@ import { SessionModule } from "./session/session.module";
 import { NotionModule } from "./notion/notion.module";
 
 @Module({
-  imports: [ConfigModule, GeminiModule, GatewayModule, SessionModule, NotionModule],
+  imports: [
+    ConfigModule,
+    GeminiModule,
+    GatewayModule,
+    SessionModule,
+    NotionModule,
+  ],
 })
 export class AppModule {}

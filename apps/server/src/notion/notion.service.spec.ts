@@ -75,42 +75,44 @@ describe("NotionService", () => {
   });
 
   it("should resolve hierarchical path (under)", async () => {
-    mockClient.search.mockImplementation(async ({ query }: { query: string }) => {
-      if (query === "Music") {
-        return {
-          results: [
-            {
-              object: "page",
-              id: "parent-music-id",
-              properties: {
-                Name: {
-                  type: "title",
-                  title: [{ plain_text: "Music" }],
+    mockClient.search.mockImplementation(
+      async ({ query }: { query: string }) => {
+        if (query === "Music") {
+          return {
+            results: [
+              {
+                object: "page",
+                id: "parent-music-id",
+                properties: {
+                  Name: {
+                    type: "title",
+                    title: [{ plain_text: "Music" }],
+                  },
                 },
               },
-            },
-          ],
-        };
-      }
-      if (query === "Busking List") {
-        return {
-          results: [
-            {
-              object: "page",
-              id: "child-busking-id",
-              parent: { page_id: "parent-music-id" },
-              properties: {
-                Name: {
-                  type: "title",
-                  title: [{ plain_text: "Busking List" }],
+            ],
+          };
+        }
+        if (query === "Busking List") {
+          return {
+            results: [
+              {
+                object: "page",
+                id: "child-busking-id",
+                parent: { page_id: "parent-music-id" },
+                properties: {
+                  Name: {
+                    type: "title",
+                    title: [{ plain_text: "Busking List" }],
+                  },
                 },
               },
-            },
-          ],
-        };
-      }
-      return { results: [] };
-    });
+            ],
+          };
+        }
+        return { results: [] };
+      },
+    );
 
     const id = await service.resolveId("Busking List under Music");
     expect(id).toBe("child-busking-id");
@@ -143,13 +145,19 @@ describe("NotionService", () => {
   });
 
   it("should create page under parent page", async () => {
-    mockClient.databases.retrieve.mockRejectedValue(new Error("Not a database"));
+    mockClient.databases.retrieve.mockRejectedValue(
+      new Error("Not a database"),
+    );
     mockClient.pages.create.mockResolvedValue({
       id: "new-page-id",
       url: "https://notion.so/new-page-id",
     });
 
-    const result = await service.createPage("parent-page-id", "New Page Title", "New content");
+    const result = await service.createPage(
+      "parent-page-id",
+      "New Page Title",
+      "New content",
+    );
     expect(result.id).toBe("new-page-id");
     expect(result.title).toBe("New Page Title");
     expect(mockClient.pages.create).toHaveBeenCalledWith({
@@ -206,7 +214,9 @@ describe("NotionService", () => {
 
     // List all shared pages first to debug
     const searchResponse = await (realService as any).client.search({});
-    const titles = searchResponse.results.map((r: any) => (realService as any).extractTitle(r));
+    const titles = searchResponse.results.map((r: any) =>
+      (realService as any).extractTitle(r),
+    );
     console.log(`[Integration Test] Shared pages in Notion workspace:`, titles);
 
     const id = await realService.resolveId("Ideas");

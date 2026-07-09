@@ -8,68 +8,7 @@ import {
 } from "../types";
 import { LiveSession } from "../session/live-session.interface";
 import { SessionTracker } from "../session/session-tracker.interface";
-import { NotionService } from "../notion/notion.service";
-
-const NOTION_TOOLS = [
-  {
-    functionDeclarations: [
-      {
-        name: "read_notion_page",
-        description: "Reads content (text blocks) from a Notion page by its title or hierarchical path.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            page_identifier: {
-              type: "STRING",
-              description: "The title or path of the Notion page, e.g., 'Music' or 'Busking List under Music'.",
-            },
-          },
-          required: ["page_identifier"],
-        },
-      },
-      {
-        name: "create_notion_page",
-        description: "Creates a new Notion page under a parent page or database title with initial content.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            parent_identifier: {
-              type: "STRING",
-              description: "The parent page or database title or path, e.g., 'Music'.",
-            },
-            title: {
-              type: "STRING",
-              description: "The title of the new Notion page.",
-            },
-            content: {
-              type: "STRING",
-              description: "The initial text content (markdown or plain text) to append into the new page.",
-            },
-          },
-          required: ["parent_identifier", "title"],
-        },
-      },
-      {
-        name: "write_notion_page",
-        description: "Appends text content or bullet points to an existing Notion page by its title or path.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            page_identifier: {
-              type: "STRING",
-              description: "The title or path of the Notion page to write content into, e.g., 'Music/Busking List'.",
-            },
-            content: {
-              type: "STRING",
-              description: "The text content or bullet points to append to the page.",
-            },
-          },
-          required: ["page_identifier", "content"],
-        },
-      },
-    ],
-  },
-];
+import { GeminiTool } from "./gemini-tool.interface";
 
 export class GeminiSession implements LiveSession {
   private readonly logger: Logger;
@@ -82,7 +21,7 @@ export class GeminiSession implements LiveSession {
     private readonly apiKey: string,
     public readonly sessionId: string,
     private readonly sessionTracker: SessionTracker,
-    private readonly notionService: NotionService,
+    private readonly tools: GeminiTool[],
   ) {
     this.logger = new Logger(`${GeminiSession.name}[${sessionId}]`);
     const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
@@ -216,7 +155,14 @@ export class GeminiSession implements LiveSession {
               parts: [{ text: config.systemInstruction }],
             }
           : undefined,
-        tools: NOTION_TOOLS,
+        tools:
+          this.tools.length > 0
+            ? [
+                {
+                  functionDeclarations: this.tools.map((t) => t.declaration),
+                },
+              ]
+            : undefined,
         inputAudioTranscription: config.inputAudioTranscription,
         outputAudioTranscription: config.outputAudioTranscription,
       },
@@ -228,69 +174,28 @@ export class GeminiSession implements LiveSession {
   /**
    * Processes a tool call from Gemini, executes it, and sends the response back.
    */
-  private async handleToolCall(toolCall: NonNullable<GeminiServerMessage["toolCall"]>): Promise<void> {
+  private async handleToolCall(
+    toolCall: NonNullable<GeminiServerMessage["toolCall"]>,
+  ): Promise<void> {
     const functionCalls = toolCall.functionCalls;
     const functionResponses: any[] = [];
 
     for (const call of functionCalls) {
       try {
         this.logger.log(`Executing tool call: ${call.name} (ID: ${call.id})`);
-        let output: any;
 
-        if (call.name === "read_notion_page") {
-          const pageId = await this.notionService.resolveId(call.args.page_identifier);
-          output = await this.notionService.readPage(pageId);
-          // Notify client to show the Notion Card
-          this.sendToClient({
-            type: "content",
-            integration: {
-              type: "notion",
-              data: {
-                title: output.title,
-                summary: output.summary,
-                action: "Page Read",
-              },
-            },
-          });
-        } else if (call.name === "create_notion_page") {
-          const parentId = await this.notionService.resolveId(call.args.parent_identifier);
-          output = await this.notionService.createPage(
-            parentId,
-            call.args.title,
-            call.args.content || "",
-          );
-          // Notify client to show the Notion Card
-          this.sendToClient({
-            type: "content",
-            integration: {
-              type: "notion",
-              data: {
-                title: output.title,
-                summary: output.summary,
-                action: "Page Created",
-              },
-            },
-          });
-        } else if (call.name === "write_notion_page") {
-          const pageId = await this.notionService.resolveId(call.args.page_identifier);
-          output = await this.notionService.writePage(
-            pageId,
-            call.args.content,
-          );
-          // Notify client to show the Notion Card
-          this.sendToClient({
-            type: "content",
-            integration: {
-              type: "notion",
-              data: {
-                title: output.title,
-                summary: output.summary,
-                action: "Page Appended",
-              },
-            },
-          });
-        } else {
+        const tool = this.tools.find((t) => t.name === call.name);
+        if (!tool) {
           throw new Error(`Unknown tool: ${call.name}`);
+        }
+
+        const { output, clientIntegration } = await tool.execute(call.args);
+
+        if (clientIntegration) {
+          this.sendToClient({
+            type: "content",
+            integration: clientIntegration,
+          });
         }
 
         functionResponses.push({
