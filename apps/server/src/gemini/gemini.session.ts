@@ -8,6 +8,7 @@ import {
 } from "../types";
 import { LiveSession } from "../session/live-session.interface";
 import { SessionTracker } from "../session/session-tracker.interface";
+import { GeminiTool } from "./gemini-tool.interface";
 
 export class GeminiSession implements LiveSession {
   private readonly logger: Logger;
@@ -20,6 +21,7 @@ export class GeminiSession implements LiveSession {
     private readonly apiKey: string,
     public readonly sessionId: string,
     private readonly sessionTracker: SessionTracker,
+    private readonly tools: GeminiTool[],
   ) {
     this.logger = new Logger(`${GeminiSession.name}[${sessionId}]`);
     const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
@@ -80,6 +82,10 @@ export class GeminiSession implements LiveSession {
         this.logger.log("Setup handshake confirmed by Gemini.");
         this.sendToClient({ type: "setup_complete" });
         return;
+      }
+
+      if (response.toolCall) {
+        this.handleToolCall(response.toolCall);
       }
 
       const content = response.serverContent;
@@ -149,12 +155,71 @@ export class GeminiSession implements LiveSession {
               parts: [{ text: config.systemInstruction }],
             }
           : undefined,
+        tools:
+          this.tools.length > 0
+            ? [
+                {
+                  functionDeclarations: this.tools.map((t) => t.declaration),
+                },
+              ]
+            : undefined,
         inputAudioTranscription: config.inputAudioTranscription,
         outputAudioTranscription: config.outputAudioTranscription,
       },
     };
 
     this.sendToGemini(JSON.stringify(geminiSetupMsg));
+  }
+
+  /**
+   * Processes a tool call from Gemini, executes it, and sends the response back.
+   */
+  private async handleToolCall(
+    toolCall: NonNullable<GeminiServerMessage["toolCall"]>,
+  ): Promise<void> {
+    const functionCalls = toolCall.functionCalls;
+    const functionResponses: any[] = [];
+
+    for (const call of functionCalls) {
+      try {
+        this.logger.log(`Executing tool call: ${call.name} (ID: ${call.id})`);
+
+        const tool = this.tools.find((t) => t.name === call.name);
+        if (!tool) {
+          throw new Error(`Unknown tool: ${call.name}`);
+        }
+
+        const { output, clientIntegration } = await tool.execute(call.args);
+
+        if (clientIntegration) {
+          this.sendToClient({
+            type: "content",
+            integration: clientIntegration,
+          });
+        }
+
+        functionResponses.push({
+          id: call.id,
+          name: call.name,
+          response: { output },
+        });
+      } catch (err: any) {
+        this.logger.error(`Error executing tool ${call.name}:`, err);
+        functionResponses.push({
+          id: call.id,
+          name: call.name,
+          response: { error: err.message || "Failed to execute tool" },
+        });
+      }
+    }
+
+    // Send responses back to Gemini Live API
+    const responsePayload = {
+      toolResponse: {
+        functionResponses,
+      },
+    };
+    this.sendToGemini(JSON.stringify(responsePayload));
   }
 
   /**

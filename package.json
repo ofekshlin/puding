@@ -8,10 +8,17 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "validate-server": "node scripts/validate-server.js",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm test && pnpm validate-server",
+    "pre-push": "pnpm test && pnpm validate-server"
   },
   "devDependencies": {
-    "turbo": "latest",
-    "prettier": "latest"
+    "prettier": "latest",
+    "simple-git-hooks": "^2.13.1",
+    "turbo": "latest"
   }
 }

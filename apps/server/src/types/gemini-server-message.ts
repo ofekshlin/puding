@@ -22,6 +22,13 @@ export interface GeminiServerMessage {
     turnComplete?: boolean;
     interrupted?: boolean;
   };
+  toolCall?: {
+    functionCalls: Array<{
+      name: string;
+      id: string;
+      args: Record<string, any>;
+    }>;
+  };
   usageMetadata?: {
     promptTokenCount?: number;
     candidatesTokenCount?: number;

@@ -3,10 +3,7 @@ import { useAudioRecorder } from "./useAudioRecorder";
 import { useAudioPlayer } from "./useAudioPlayer";
 
 export type ConnectionStatus =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "failed";
+  "disconnected" | "connecting" | "connected" | "failed";
 
 export interface ChatMessage {
   id: string;
@@ -167,6 +164,22 @@ export function useLiveSession(): UseLiveSessionResult {
 
           if (msg.audio) {
             playChunk(msg.audio);
+          }
+
+          if (msg.integration) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id:
+                  typeof crypto !== "undefined" && crypto.randomUUID
+                    ? crypto.randomUUID()
+                    : Math.random().toString(36).substring(2, 9),
+                sender: "puding",
+                text: "",
+                timestamp: new Date().toLocaleTimeString(),
+                integration: msg.integration,
+              },
+            ]);
           }
 
           if (msg.turnComplete) {

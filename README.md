@@ -102,10 +102,10 @@ Focuses on enabling multi-modal text and audio chat sessions with extensible vis
 
 Allows Puding to read pages, write to pages, and create pages within a Notion Workspace.
 
-- [ ] **14. Notion Integration Provisioning:** Generate an Internal Integration Token within the Notion Developer settings and share designated pages/databases with the integration.
-- [ ] **15. Notion SDK Client Integration:** Implement a dedicated Notion API service in the backend using `@notionhq/client` that supports reading page content/blocks, creating new pages, and writing (appending) blocks to pages.
-- [ ] **16. Notion Tool Schema Declarations:** Declare function schemas for Notion tools (`read_notion_page(page_id: string)`, `create_notion_page(parent_id: string, title: string, content: string)`, and `write_notion_page(page_id: string, content: string)`) in the Gemini Live API initializer.
-- [ ] **17. Notion Tool Execution Loop:** Implement backend tool handlers to intercept Notion tool calls from Gemini, execute corresponding API calls via the Notion service, and return the `toolResponse`.
+- [x] **14. Notion Integration Provisioning:** Generate an Internal Integration Token within the Notion Developer settings and share designated pages/databases with the integration.
+- [x] **15. Notion SDK Client Integration:** Implement a dedicated Notion API service in the backend using `@notionhq/client` that supports reading page content/blocks, creating new pages, and writing (appending) blocks to pages.
+- [x] **16. Notion Tool Schema Declarations:** Declare function schemas for Notion tools (`read_notion_page(page_id: string)`, `create_notion_page(parent_id: string, title: string, content: string)`, and `write_notion_page(page_id: string, content: string)`) in the Gemini Live API initializer.
+- [x] **17. Notion Tool Execution Loop:** Implement backend tool handlers to intercept Notion tool calls from Gemini, execute corresponding API calls via the Notion service, and return the `toolResponse`.
 
 ### Phase 4: Web Search Integration
 

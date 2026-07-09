@@ -6,6 +6,7 @@ import {
   LiveSession,
 } from "../session/live-session.service";
 import { SessionTracker } from "../session/session-tracker.interface";
+import { GeminiTool } from "./gemini-tool.interface";
 
 @Injectable()
 export class GeminiService extends LiveSessionService {
@@ -13,6 +14,7 @@ export class GeminiService extends LiveSessionService {
 
   constructor(
     @Inject(SessionTracker) private readonly sessionTracker: SessionTracker,
+    @Inject("GEMINI_TOOLS") private readonly tools: GeminiTool[],
   ) {
     super();
   }
@@ -30,6 +32,12 @@ export class GeminiService extends LiveSessionService {
     sessionId: string,
   ): LiveSession {
     this.logger.log(`Spawning Gemini session for client [${sessionId}]`);
-    return new GeminiSession(clientWs, apiKey, sessionId, this.sessionTracker);
+    return new GeminiSession(
+      clientWs,
+      apiKey,
+      sessionId,
+      this.sessionTracker,
+      this.tools,
+    );
   }
 }

@@ -41,6 +41,8 @@ Project **Puding** is an ultra-low-latency, stateful, multimodal AI Agent (Jarvi
 - **OOP & SOLID Principles:** Enforce strict Object-Oriented Programming (OOP) and SOLID principles. Encapsulate domain logic within NestJS Modules, Services, and Gateways, using dependency injection for composition.
   - _Dependency Inversion Principle (DIP):_ High-level modules (such as Gateways/Controllers) must not depend on low-level modules (such as specific API client implementations). Both must depend on abstractions (interfaces or abstract classes).
   - _Abstraction using NestJS Injection Tokens:_ Define runtime-persistent abstract classes to serve as NestJS dependency injection tokens. Subclasses implementing these abstractions can then be mapped via custom providers (e.g., `useClass`) in NestJS modules to decouple components across boundaries.
+  - _Gemini Tool Abstraction:_ All function tools (e.g., Notion, Spotify, Web Search) must extend the abstract `GeminiTool` class. Do not define tool schemas or execute them directly inside `GeminiSession`. Instead, register them under the `"GEMINI_TOOLS"` token to keep session management decoupled and open for extension.
+
 - **Structured Logging:** Use the built-in NestJS `Logger` class for all logging. `console.log` is strictly forbidden.
 - **Barge-In Handling:** The system must immediately stop audio output upon user input detection.
 - **React & Frontend Best Practices:**
