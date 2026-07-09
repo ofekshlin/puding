@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import { Client } from "@notionhq/client";
 import { ConfigService } from "../config/config.service";
 
@@ -7,7 +7,7 @@ export class NotionService {
   private readonly logger = new Logger(NotionService.name);
   private readonly client: Client | null = null;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(@Inject(ConfigService) private readonly configService: ConfigService) {
     const token = this.configService.getNotionToken();
     if (token) {
       this.client = new Client({ auth: token });

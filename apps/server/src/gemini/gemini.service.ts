@@ -14,7 +14,7 @@ export class GeminiService extends LiveSessionService {
 
   constructor(
     @Inject(SessionTracker) private readonly sessionTracker: SessionTracker,
-    private readonly notionService: NotionService,
+    @Inject(NotionService) private readonly notionService: NotionService,
   ) {
     super();
   }
