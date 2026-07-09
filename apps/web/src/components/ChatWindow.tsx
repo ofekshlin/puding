@@ -41,7 +41,7 @@ const NotionCard: React.FC<IntegrationCardProps> = ({ data }) => (
       <p className="doc-summary">{data.summary || "Summary..."}</p>
     </div>
     <div className="card-footer">
-      <span className="badge">Database Logged</span>
+      <span className="badge">{data.action || "Database Logged"}</span>
     </div>
   </div>
 );

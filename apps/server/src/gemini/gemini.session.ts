@@ -240,6 +240,18 @@ export class GeminiSession implements LiveSession {
         if (call.name === "read_notion_page") {
           const pageId = await this.notionService.resolveId(call.args.page_identifier);
           output = await this.notionService.readPage(pageId);
+          // Notify client to show the Notion Card
+          this.sendToClient({
+            type: "content",
+            integration: {
+              type: "notion",
+              data: {
+                title: output.title,
+                summary: output.summary,
+                action: "Page Read",
+              },
+            },
+          });
         } else if (call.name === "create_notion_page") {
           const parentId = await this.notionService.resolveId(call.args.parent_identifier);
           output = await this.notionService.createPage(
@@ -255,6 +267,7 @@ export class GeminiSession implements LiveSession {
               data: {
                 title: output.title,
                 summary: output.summary,
+                action: "Page Created",
               },
             },
           });
@@ -272,6 +285,7 @@ export class GeminiSession implements LiveSession {
               data: {
                 title: output.title,
                 summary: output.summary,
+                action: "Page Appended",
               },
             },
           });
