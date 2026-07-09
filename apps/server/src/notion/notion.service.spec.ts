@@ -199,4 +199,19 @@ describe("NotionService", () => {
       ],
     });
   });
+
+  it("should resolve real page title 'Ideas' using Notion API", async () => {
+    const realConfigService = new ConfigService();
+    const realService = new NotionService(realConfigService);
+
+    // List all shared pages first to debug
+    const searchResponse = await (realService as any).client.search({});
+    const titles = searchResponse.results.map((r: any) => (realService as any).extractTitle(r));
+    console.log(`[Integration Test] Shared pages in Notion workspace:`, titles);
+
+    const id = await realService.resolveId("Ideas");
+    console.log(`[Integration Test] Resolved 'Ideas' to ID: ${id}`);
+    expect(id).toBeDefined();
+    expect(id.replace(/-/g, "")).toHaveLength(32);
+  });
 });
