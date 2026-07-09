@@ -4,4 +4,5 @@ packages:
 allowBuilds:
   '@nestjs/core': true
   esbuild: true
+  simple-git-hooks: true
   unrs-resolver: true
