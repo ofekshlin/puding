@@ -69,7 +69,7 @@ export function useLiveSession(): UseLiveSessionResult {
     setIsThinking(false);
     addLog("Connecting to WebSocket proxy...");
 
-    const ws = new WebSocket("ws://localhost:3001");
+    const ws = new WebSocket("ws://localhost:6001");
     wsRef.current = ws;
 
     ws.onopen = () => {

@@ -6,8 +6,8 @@ const fs = require("fs");
 // Path to apps/server/.env
 const dotenvPath = path.resolve(__dirname, "../apps/server/.env");
 
-// Parse the port from .env, defaulting to 3001
-let port = 3001;
+// Parse the port from .env, defaulting to 6001
+let port = 6001;
 if (fs.existsSync(dotenvPath)) {
   const envContent = fs.readFileSync(dotenvPath, "utf8");
   const match = envContent.match(/^PORT\s*=\s*(\d+)/m);
