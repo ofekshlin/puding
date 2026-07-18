@@ -21,7 +21,7 @@ export class ConfigService {
     this.validateConfig(envPath);
 
     this.geminiApiKey = process.env.GEMINI_API_KEY as string;
-    this.port = process.env.PORT ? parseInt(process.env.PORT, 10) : 6001;
+    this.port = process.env.PORT ? parseInt(process.env.PORT, 10) : 6601;
     this.notionToken = process.env.NOTION_TOKEN as string;
     this.tavilyApiKey = process.env.TAVILY_API_KEY;
   }
