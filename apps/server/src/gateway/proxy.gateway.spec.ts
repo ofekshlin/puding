@@ -32,7 +32,7 @@ describe("ProxyGateway (Unit)", () => {
 
     mockConfigService = {
       getGeminiApiKey: jest.fn().mockReturnValue("test-api-key"),
-      getPort: jest.fn().mockReturnValue(3001),
+      getPort: jest.fn().mockReturnValue(6601),
     } as any;
 
     mockSessionTracker = {

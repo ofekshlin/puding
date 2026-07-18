@@ -12,7 +12,7 @@ export type ServerMessage =
       userTranscription?: string;
       turnComplete?: boolean;
       integration?: {
-        type: "notion" | "spotify";
+        type: "notion" | "spotify" | "search";
         data: any;
       };
     }

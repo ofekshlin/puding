@@ -4,6 +4,7 @@ import { GeminiModule } from "./gemini/gemini.module";
 import { GatewayModule } from "./gateway/gateway.module";
 import { SessionModule } from "./session/session.module";
 import { NotionModule } from "./notion/notion.module";
+import { SearchModule } from "./search/search.module";
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { NotionModule } from "./notion/notion.module";
     GatewayModule,
     SessionModule,
     NotionModule,
+    SearchModule,
   ],
 })
 export class AppModule {}

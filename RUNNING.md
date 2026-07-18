@@ -61,7 +61,7 @@ cp apps/server/.env.example apps/server/.env
 Open `apps/server/.env` and supply your API key:
 
 ```env
-PORT=3001
+PORT=6601
 GEMINI_API_KEY=your_actual_gemini_api_key_here
 ```
 
@@ -87,8 +87,8 @@ To start both the NestJS server and Next.js client concurrently in watch mode:
 pnpm dev
 ```
 
-- NestJS Server will listen at `ws://localhost:3001`
-- Next.js Web App will be available at `http://localhost:3000`
+- NestJS Server will listen at `ws://localhost:6601`
+- Next.js Web App will be available at `http://localhost:6600`
 
 ### Start a Specific Workspace App
 
@@ -120,7 +120,7 @@ We have created a standalone, non-blocking test client script to verify the WebS
 The script will output log statements indicating a successful handshake and response:
 
 ```text
-[Test Client] Connecting to local proxy at ws://localhost:3001...
+[Test Client] Connecting to local proxy at ws://localhost:6601...
 [Test Client] WebSocket connection opened. Sending setup config...
 [Test Client] Received message type: "setup_complete"
 [Test Client] Handshake confirmed. Sending a dummy audio packet (silence) and text greeting...

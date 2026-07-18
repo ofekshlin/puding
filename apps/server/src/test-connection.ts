@@ -5,7 +5,7 @@ import { ClientMessage, ServerMessage } from "./types";
 
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 6601;
 const proxyUrl = `ws://localhost:${port}`;
 
 console.log(`[Test Client] Connecting to local proxy at ${proxyUrl}...`);
