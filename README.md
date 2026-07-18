@@ -111,9 +111,9 @@ Allows Puding to read pages, write to pages, and create pages within a Notion Wo
 
 Empowers Puding to autonomously fetch real-time facts from the live internet.
 
-- [ ] **18. Web Search Function Declaration:** Register a structured tool configuration schema for `search_web(query: string)` inside the Gemini Live API initializer.
-- [ ] **19. Web Search API Client:** Integrate a search API (e.g., Serper or Tavily) client on the backend.
-- [ ] **20. Web Search Tool Execution Loop:** Implement the backend interceptor to handle `search_web` tool calls, execute the query, and return the search results back to Gemini.
+- [x] **18. Web Search Function Declaration:** Register a structured tool configuration schema for `search_web(query: string)` inside the Gemini Live API initializer.
+- [x] **19. Web Search API Client:** Integrate a search API (e.g., Serper or Tavily) client on the backend.
+- [x] **20. Web Search Tool Execution Loop:** Implement the backend interceptor to handle `search_web` tool calls, execute the query, and return the search results back to Gemini.
 
 ---
 
