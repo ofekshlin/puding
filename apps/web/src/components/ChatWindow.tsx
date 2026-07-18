@@ -52,9 +52,41 @@ const DefaultIntegrationCard: React.FC<IntegrationCardProps> = ({ data }) => (
   </div>
 );
 
+const SearchCard: React.FC<IntegrationCardProps> = ({ data }) => (
+  <div className="integration-card search-card">
+    <div className="card-header">
+      <span className="card-icon">🔍</span>
+      <span className="card-title">Web Search</span>
+    </div>
+    <div className="card-body">
+      <strong className="search-query">Query: &quot;{data.query}&quot;</strong>
+      <div className="search-results-list">
+        {data.results && data.results.length > 0 ? (
+          data.results.map((res: any, idx: number) => (
+            <div key={idx} className="search-result-item">
+              <a
+                href={res.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="search-result-link"
+              >
+                {res.title}
+              </a>
+              <p className="search-result-snippet">{res.snippet}</p>
+            </div>
+          ))
+        ) : (
+          <p className="search-no-results">No results found.</p>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
 const INTEGRATION_RENDERERS: Record<string, React.FC<IntegrationCardProps>> = {
   spotify: SpotifyCard,
   notion: NotionCard,
+  search: SearchCard,
 };
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({

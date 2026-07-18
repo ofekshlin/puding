@@ -7,9 +7,11 @@ import { ReadNotionPageTool } from "../notion/tools/read-notion-page.tool";
 import { CreateNotionPageTool } from "../notion/tools/create-notion-page.tool";
 import { WriteNotionPageTool } from "../notion/tools/write-notion-page.tool";
 import { GeminiTool } from "./gemini-tool.interface";
+import { SearchModule } from "../search/search.module";
+import { SearchWebTool } from "../search/tools/search-web.tool";
 
 @Module({
-  imports: [SessionModule, NotionModule],
+  imports: [SessionModule, NotionModule, SearchModule],
   providers: [
     {
       provide: LiveSessionService,
@@ -21,8 +23,14 @@ import { GeminiTool } from "./gemini-tool.interface";
         read: ReadNotionPageTool,
         create: CreateNotionPageTool,
         write: WriteNotionPageTool,
-      ): GeminiTool[] => [read, create, write],
-      inject: [ReadNotionPageTool, CreateNotionPageTool, WriteNotionPageTool],
+        search: SearchWebTool,
+      ): GeminiTool[] => [read, create, write, search],
+      inject: [
+        ReadNotionPageTool,
+        CreateNotionPageTool,
+        WriteNotionPageTool,
+        SearchWebTool,
+      ],
     },
   ],
   exports: [LiveSessionService],

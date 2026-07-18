@@ -8,6 +8,7 @@ export class ConfigService {
   private readonly geminiApiKey: string;
   private readonly port: number;
   private readonly notionToken: string;
+  private readonly tavilyApiKey?: string;
 
   // Define required environment variables here for easy extension
   private readonly requiredEnvVars = ["GEMINI_API_KEY", "NOTION_TOKEN"];
@@ -22,6 +23,7 @@ export class ConfigService {
     this.geminiApiKey = process.env.GEMINI_API_KEY as string;
     this.port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
     this.notionToken = process.env.NOTION_TOKEN as string;
+    this.tavilyApiKey = process.env.TAVILY_API_KEY;
   }
 
   private validateConfig(envPath: string): void {
@@ -55,5 +57,12 @@ export class ConfigService {
    */
   public getNotionToken(): string {
     return this.notionToken;
+  }
+
+  /**
+   * Retrieves the Tavily API key.
+   */
+  public getTavilyApiKey(): string | undefined {
+    return this.tavilyApiKey;
   }
 }
