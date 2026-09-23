@@ -5,6 +5,7 @@ import { GatewayModule } from "./gateway/gateway.module";
 import { SessionModule } from "./session/session.module";
 import { NotionModule } from "./notion/notion.module";
 import { SearchModule } from "./search/search.module";
+import { SpotifyModule } from "./spotify/spotify.module";
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { SearchModule } from "./search/search.module";
     SessionModule,
     NotionModule,
     SearchModule,
+    SpotifyModule,
   ],
 })
 export class AppModule {}
