@@ -677,6 +677,44 @@ body {
   color: var(--text-secondary);
 }
 
+.spotify-card .spotify-badge {
+  margin-left: auto;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(30, 215, 96, 0.15);
+  color: #1ed760;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.spotify-card .spotify-body {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.spotify-card .album-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.spotify-card .track-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.spotify-card .playlist-name {
+  font-size: 0.7rem;
+  color: #1ed760;
+  opacity: 0.85;
+}
+
 /* Spotify Playback animation */
 .playback-indicator {
   display: flex;

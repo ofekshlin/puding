@@ -15,10 +15,24 @@ const SpotifyCard: React.FC<IntegrationCardProps> = ({ data }) => (
     <div className="card-header">
       <span className="card-icon">🎵</span>
       <span className="card-title">Spotify Playback</span>
+      {data.action && <span className="badge spotify-badge">{data.action}</span>}
     </div>
-    <div className="card-body">
-      <strong className="track-name">{data.track || "Unknown Track"}</strong>
-      <span className="artist-name">{data.artist || "Unknown Artist"}</span>
+    <div className="card-body spotify-body">
+      {data.albumArt && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          className="album-art"
+          src={data.albumArt}
+          alt={`${data.track || "Album"} cover art`}
+        />
+      )}
+      <div className="track-details">
+        <strong className="track-name">{data.track || "Unknown Track"}</strong>
+        <span className="artist-name">{data.artist || "Unknown Artist"}</span>
+        {data.playlist && (
+          <span className="playlist-name">Playlist: {data.playlist}</span>
+        )}
+      </div>
     </div>
     {data.isPlaying && (
       <div className="playback-indicator">
