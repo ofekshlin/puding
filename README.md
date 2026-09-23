@@ -121,7 +121,7 @@ Gives Puding voice control over Spotify playback: playing a song, queueing a son
 
 - [x] **21. Spotify OAuth2 Provisioning & Token Service:** Register a Spotify app (redirect URI `http://localhost:6601/spotify/callback`, scopes `user-read-playback-state`, `user-modify-playback-state`, `playlist-read-private`, `playlist-modify-private`, `playlist-modify-public`), expose optional `SPOTIFY_*` variables via `ConfigService`, and implement `SpotifyAuthService` (authorize URL, one-time code exchange, cached refresh-token grant) plus the `/spotify/login` and `/spotify/callback` setup routes.
 - [x] **22. Spotify Web API Client:** Define the abstract `MusicService` injection token and implement `SpotifyService` against the Spotify Web API — track search, active-device resolution, start playback, enqueue, playlist lookup by name, and add to playlist (`POST /playlists/{id}/items`) — with 401 refresh-and-retry and human-readable error translation.
-- [ ] **23. Spotify Tool Schema Declarations:** Declare and register `play_song(query, device_name?)`, `queue_song(query)`, and `add_song_to_playlist(query, playlist_name)` as `GeminiTool` subclasses under the `"GEMINI_TOOLS"` token.
+- [x] **23. Spotify Tool Schema Declarations:** Declare and register `play_song(query, device_name?)`, `queue_song(query)`, and `add_song_to_playlist(query, playlist_name)` as `GeminiTool` subclasses under the `"GEMINI_TOOLS"` token.
 - [ ] **24. Playback Visualization:** Extend the existing `SpotifyCard` with an action badge (Playing / Queued / Added to playlist), the target playlist name, and album art.
 
 > Requires a Spotify **Premium** account with an active device; Web API player endpoints control existing players and reject free accounts.
