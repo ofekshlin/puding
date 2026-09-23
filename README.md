@@ -115,6 +115,17 @@ Empowers Puding to autonomously fetch real-time facts from the live internet.
 - [x] **19. Web Search API Client:** Integrate a search API (e.g., Serper or Tavily) client on the backend.
 - [x] **20. Web Search Tool Execution Loop:** Implement the backend interceptor to handle `search_web` tool calls, execute the query, and return the search results back to Gemini.
 
+### Phase 5: Spotify Media Control
+
+Gives Puding voice control over Spotify playback: playing a song, queueing a song, and adding a song to a playlist. Detailed design: `docs/design/phase_5_design.md`.
+
+- [ ] **21. Spotify OAuth2 Provisioning & Token Service:** Register a Spotify app (redirect URI `http://localhost:6601/spotify/callback`, scopes `user-read-playback-state`, `user-modify-playback-state`, `playlist-read-private`, `playlist-modify-private`, `playlist-modify-public`), expose optional `SPOTIFY_*` variables via `ConfigService`, and implement `SpotifyAuthService` (authorize URL, one-time code exchange, cached refresh-token grant) plus the `/spotify/login` and `/spotify/callback` setup routes.
+- [ ] **22. Spotify Web API Client:** Define the abstract `MusicService` injection token and implement `SpotifyService` against the Spotify Web API — track search, active-device resolution, start playback, enqueue, playlist lookup by name, and add to playlist (`POST /playlists/{id}/items`) — with 401 refresh-and-retry and human-readable error translation.
+- [ ] **23. Spotify Tool Schema Declarations:** Declare and register `play_song(query, device_name?)`, `queue_song(query)`, and `add_song_to_playlist(query, playlist_name)` as `GeminiTool` subclasses under the `"GEMINI_TOOLS"` token.
+- [ ] **24. Playback Visualization:** Extend the existing `SpotifyCard` with an action badge (Playing / Queued / Added to playlist), the target playlist name, and album art.
+
+> Requires a Spotify **Premium** account with an active device; Web API player endpoints control existing players and reject free accounts.
+
 ---
 
 ## Future Features
@@ -125,10 +136,9 @@ These features are excluded from the active roadmap stages and will be planned i
   - PostgreSQL with `pgvector` for storing and retrieving semantic context across separate sessions.
   - Asynchronous background session summarizer.
   - Context injection pipeline to insert memory directly into the initial system prompt.
-- **Spotify Media Control Integration:**
-  - Secure OAuth2 flow for Spotify playback authorization.
-  - Spotify API schemas (`play_music`, `pause_music`, `get_current_track`).
-  - Web API control integration for managing active Spotify players.
+- **Extended Spotify Transport Controls:**
+  - `pause_music`, `resume_music`, `skip_track`, and `set_volume` tools.
+  - `get_current_track` for anaphoric requests ("add this song to my playlist").
 
 ---
 
