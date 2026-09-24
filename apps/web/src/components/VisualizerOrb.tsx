@@ -1,7 +1,8 @@
 import React from "react";
+import { ConnectionStatus } from "../hooks/useLiveSession";
 
 interface VisualizerOrbProps {
-  status: "disconnected" | "connecting" | "connected" | "failed";
+  status: ConnectionStatus;
   isRecording: boolean;
   isSpeaking: boolean;
   audioLevel: number;
@@ -21,7 +22,7 @@ export const VisualizerOrb: React.FC<VisualizerOrbProps> = ({
 }) => {
   // Determine state mapping: sleeping, thinking, listening, speaking
   let orbState: "sleeping" | "thinking" | "listening" | "speaking" = "sleeping";
-  if (status === "connecting" || isThinking) {
+  if (status === "connecting" || status === "waking" || isThinking) {
     orbState = "thinking";
   } else if (status === "connected") {
     if (isRecording) {

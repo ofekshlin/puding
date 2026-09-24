@@ -16,7 +16,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onDisconnect,
   onToggleRecording,
 }) => {
-  const isConnecting = status === "connecting";
+  const isWaking = status === "waking";
+  const isConnecting = status === "connecting" || isWaking;
   const isConnected = status === "connected";
 
   if (!isConnected) {
@@ -28,7 +29,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           className="btn btn-primary"
           style={{ width: "100%" }}
         >
-          {isConnecting ? "Connecting..." : "Connect Agent"}
+          {isWaking
+            ? "Waking backend..."
+            : isConnecting
+              ? "Connecting..."
+              : "Connect Agent"}
         </button>
       </div>
     );

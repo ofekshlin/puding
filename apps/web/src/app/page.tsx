@@ -37,7 +37,7 @@ export default function Home() {
           isSpeaking={isSpeaking}
           audioLevel={audioLevel}
           onOrbClick={status === "connected" ? toggleRecording : connect}
-          disabled={status === "connecting"}
+          disabled={status === "connecting" || status === "waking"}
           isThinking={isThinking}
         />
 
