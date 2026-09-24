@@ -34,8 +34,32 @@ jobs:
         with:
           node-version: 20
 
+      # Until the deployment secrets are configured (see DEPLOYMENT.md) there is
+      # nothing to pair, and a red check would be noise rather than signal.
+      - name: Check that deployment secrets are configured
+        id: secrets
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          missing=""
+          for name in RENDER_API_KEY RENDER_SERVICE_ID VERCEL_TOKEN VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              missing="$missing $name"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Preview pairing is disabled: missing repository secrets$missing"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Resolve Render preview and publish it to Vercel
         id: pair
+        if: steps.secrets.outputs.configured == 'true'
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
@@ -49,7 +73,7 @@ jobs:
       # A single marker-tagged comment is reused across runs so pushing to the
       # pull request does not bury it under duplicates.
       - name: Comment the paired preview URLs
-        if: always()
+        if: always() && steps.secrets.outputs.configured == 'true'
         continue-on-error: true
         uses: actions/github-script@v7
         env:
