@@ -15,7 +15,7 @@ dashboard steps per PR.
 PR #42 opened
    ├── Vercel   → https://puding-web-git-<branch>-<scope>.vercel.app
    │                 resolves backend at runtime ──┐
-   └── Render   → https://puding-server-pr-42.onrender.com  ←┘  (wss://)
+   └── Render   → https://puding-backend-pr-42.onrender.com  ←┘  (wss://)
 ```
 
 Both previews are destroyed when the PR is merged or closed.
@@ -67,7 +67,7 @@ preview behaviour is reviewable and identical for every feature:
 ```yaml
 services:
   - type: web
-    name: puding-server
+    name: puding-backend
     runtime: node
     plan: free
     region: frankfurt
@@ -124,7 +124,7 @@ resolveWsUrl() =
 if (VERCEL_ENV === "preview" && VERCEL_GIT_PULL_REQUEST_ID)
   wsUrl =
     PREVIEW_WS_URL_OVERRIDE ?? // set by CI, exact
-    `wss://puding-server-pr-${VERCEL_GIT_PULL_REQUEST_ID}.onrender.com`;
+    `wss://puding-backend-pr-${VERCEL_GIT_PULL_REQUEST_ID}.onrender.com`;
 else wsUrl = NEXT_PUBLIC_SERVER_WS_URL;
 ```
 
@@ -164,7 +164,7 @@ Required repository secrets: `RENDER_API_KEY`, `RENDER_SERVICE_ID`,
 
 - **25. Backend health endpoint & `render.yaml` blueprint** — add `GET /health`
   (status, commit, `isPreview`, service name) and commit a `render.yaml` defining
-  `puding-server` with `previews.generation: automatic`, `plan: free`,
+  `puding-backend` with `previews.generation: automatic`, `plan: free`,
   `healthCheckPath`, a server-scoped `buildFilter`, and a `puding-preview-secrets`
   env group reference.
 - **26. Runtime backend URL resolution** — replace the build-time

@@ -205,6 +205,7 @@ async function run() {
   const pullRequestNumber = requireEnv("PR_NUMBER");
   const projectId = requireEnv("VERCEL_PROJECT_ID");
 
+  const baseService = await renderRequest(`/services/${baseServiceId}`);
   const preview = await findRenderPreview(baseServiceId, branch);
   const backendUrl = preview.serviceDetails.url;
   console.log(`Render preview ${preview.name} -> ${backendUrl}`);
@@ -219,7 +220,7 @@ async function run() {
 
   const wsUrl = backendUrl.replace(/^https:/, "wss:");
   const { hostname } = new URL(backendUrl);
-  const conventionHost = `puding-server-pr-${pullRequestNumber}.onrender.com`;
+  const conventionHost = `${baseService.name}-pr-${pullRequestNumber}.onrender.com`;
   const conventionHolds = hostname === conventionHost;
 
   const vercelUrl = await publishToVercel(projectId, branch, wsUrl);

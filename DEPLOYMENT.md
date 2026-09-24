@@ -79,7 +79,7 @@ The backend must be deployed first so we have the production WebSocket URL ready
 
 #### 2. Configure Service Settings
 
-- **Name**: `puding-server` (or any unique name)
+- **Name**: `puding-backend` (or any unique name)
 - **Region**: Select the region closest to your target users (e.g., _Frankfurt / Oregon / Ohio_).
 - **Branch**: `main` (or your active release branch)
 - **Root Directory**: _(Leave empty / root)_
@@ -113,10 +113,10 @@ In the **Environment Variables** section on Render, add:
    ```text
    Puding WebSocket Proxy running on port 10000
    ```
-3. Copy your service's HTTPS URL (e.g. `https://puding-server.onrender.com`).
+3. Copy your service's HTTPS URL (e.g. `https://puding-backend.onrender.com`).
 4. Your production WebSocket URL is:
    ```text
-   wss://puding-server.onrender.com
+   wss://puding-backend.onrender.com
    ```
 
 ---
@@ -142,7 +142,7 @@ In the Vercel **Environment Variables** panel, add:
 
 | Variable Name               | Value                              | Purpose                                        |
 | :-------------------------- | :--------------------------------- | :--------------------------------------------- |
-| `NEXT_PUBLIC_SERVER_WS_URL` | `wss://puding-server.onrender.com` | Directs client to the secure backend WebSocket |
+| `NEXT_PUBLIC_SERVER_WS_URL` | `wss://puding-backend.onrender.com` | Directs client to the secure backend WebSocket |
 
 #### 4. Deploy
 
@@ -161,7 +161,7 @@ feature can be exercised end to end before it reaches `main`.
 Pull request opened
         │
         ├── Vercel builds a preview of apps/web         → https://puding-<hash>.vercel.app
-        ├── Render builds a preview of apps/server      → https://puding-server-pr-<n>.onrender.com
+        ├── Render builds a preview of apps/server      → https://puding-backend-pr-<n>.onrender.com
         │
         └── .github/workflows/preview-env.yml
               1. asks the Render API which preview belongs to this PR
@@ -182,7 +182,7 @@ per pull request, so the browser resolves the backend at **runtime** instead
 1. `?ws=wss://...` in the URL — a manual override, useful for pointing any
    preview at any backend while debugging;
 2. `GET /api/config` — returns `PREVIEW_WS_URL_OVERRIDE` published by the
-   workflow, falling back to `wss://puding-server-pr-<n>.onrender.com`;
+   workflow, falling back to `wss://puding-backend-pr-<n>.onrender.com`;
 3. `NEXT_PUBLIC_SERVER_WS_URL` — production;
 4. `ws://localhost:6601` — local development.
 
@@ -201,7 +201,7 @@ environment group it references:
 2. Add **non-production** values for `GEMINI_API_KEY`, `NOTION_TOKEN`,
    `TAVILY_API_KEY` and the `SPOTIFY_*` credentials. Previews inherit these, so
    production keys must not be placed here.
-3. Link the group to the `puding-server` service.
+3. Link the group to the `puding-backend` service.
 
 **GitHub** — add these repository secrets (Settings &rarr; Secrets and variables
 &rarr; Actions):
@@ -209,7 +209,7 @@ environment group it references:
 | Secret              | Where to get it                                       |
 | :------------------ | :---------------------------------------------------- |
 | `RENDER_API_KEY`    | Render &rarr; Account Settings &rarr; API Keys        |
-| `RENDER_SERVICE_ID` | The `srv-...` id in the `puding-server` dashboard URL |
+| `RENDER_SERVICE_ID` | The `srv-...` id in the `puding-backend` dashboard URL |
 | `VERCEL_TOKEN`      | Vercel &rarr; Account Settings &rarr; Tokens          |
 | `VERCEL_PROJECT_ID` | Vercel project &rarr; Settings &rarr; General         |
 | `VERCEL_ORG_ID`     | Vercel team &rarr; Settings &rarr; General            |
@@ -227,7 +227,7 @@ value is echoed into logs or into the pull request comment.
 - Previews from forks are skipped because repository secrets are unavailable to
   them.
 - Preview instances are billed at the base service's rate, so previews of the
-  free `puding-server` are free, but they draw on the same 750 free instance
+  free `puding-backend` are free, but they draw on the same 750 free instance
   hours per month — a long-lived pull request consumes hours even while idle.
 - Free instances spin down after 15 minutes, so the first connection to a
   preview takes 30–50 seconds. The UI shows a _"Waking backend"_ state for the
@@ -329,7 +329,7 @@ After deployment, verify the end-to-end functionality:
   redeployed it.
 - **Solution**: Open `<frontend>/api/config` to see the URL actually served,
   re-run the **Preview environment** workflow, or append
-  `?ws=wss://puding-server-pr-<n>.onrender.com` to the preview URL to override
+  `?ws=wss://puding-backend-pr-<n>.onrender.com` to the preview URL to override
   the backend for one session.
 
 ### 5. No Render Preview Was Created for a Pull Request
