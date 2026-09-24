@@ -9,6 +9,9 @@ export class ConfigService {
   private readonly port: number;
   private readonly notionToken: string;
   private readonly tavilyApiKey?: string;
+  private readonly commitSha: string;
+  private readonly serviceName: string;
+  private readonly preview: boolean;
 
   // Define required environment variables here for easy extension
   private readonly requiredEnvVars = ["GEMINI_API_KEY", "NOTION_TOKEN"];
@@ -24,6 +27,9 @@ export class ConfigService {
     this.port = process.env.PORT ? parseInt(process.env.PORT, 10) : 6601;
     this.notionToken = process.env.NOTION_TOKEN as string;
     this.tavilyApiKey = process.env.TAVILY_API_KEY;
+    this.commitSha = process.env.RENDER_GIT_COMMIT ?? "unknown";
+    this.serviceName = process.env.RENDER_SERVICE_NAME ?? "local";
+    this.preview = process.env.IS_PULL_REQUEST === "true";
   }
 
   private validateConfig(envPath: string): void {
@@ -64,5 +70,26 @@ export class ConfigService {
    */
   public getTavilyApiKey(): string | undefined {
     return this.tavilyApiKey;
+  }
+
+  /**
+   * Retrieves the git commit the running instance was built from.
+   */
+  public getCommitSha(): string {
+    return this.commitSha;
+  }
+
+  /**
+   * Retrieves the name of the deployed service instance.
+   */
+  public getServiceName(): string {
+    return this.serviceName;
+  }
+
+  /**
+   * Indicates whether this instance is a per-pull-request preview deployment.
+   */
+  public isPreview(): boolean {
+    return this.preview;
   }
 }
