@@ -13,6 +13,9 @@ export class ConfigService {
   private readonly spotifyClientSecret?: string;
   private readonly spotifyRefreshToken?: string;
   private readonly spotifyRedirectUri: string;
+  private readonly commitSha: string;
+  private readonly serviceName: string;
+  private readonly preview: boolean;
 
   // Define required environment variables here for easy extension
   private readonly requiredEnvVars = ["GEMINI_API_KEY", "NOTION_TOKEN"];
@@ -34,6 +37,9 @@ export class ConfigService {
     this.spotifyRedirectUri =
       process.env.SPOTIFY_REDIRECT_URI ??
       `http://localhost:${this.port}/spotify/callback`;
+    this.commitSha = process.env.RENDER_GIT_COMMIT ?? "unknown";
+    this.serviceName = process.env.RENDER_SERVICE_NAME ?? "local";
+    this.preview = process.env.IS_PULL_REQUEST === "true";
   }
 
   private validateConfig(envPath: string): void {
@@ -102,5 +108,26 @@ export class ConfigService {
    */
   public getSpotifyRedirectUri(): string {
     return this.spotifyRedirectUri;
+  }
+
+  /**
+   * Retrieves the git commit the running instance was built from.
+   */
+  public getCommitSha(): string {
+    return this.commitSha;
+  }
+
+  /**
+   * Retrieves the name of the deployed service instance.
+   */
+  public getServiceName(): string {
+    return this.serviceName;
+  }
+
+  /**
+   * Indicates whether this instance is a per-pull-request preview deployment.
+   */
+  public isPreview(): boolean {
+    return this.preview;
   }
 }
