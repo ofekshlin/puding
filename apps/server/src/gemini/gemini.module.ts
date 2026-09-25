@@ -9,9 +9,14 @@ import { WriteNotionPageTool } from "../notion/tools/write-notion-page.tool";
 import { GeminiTool } from "./gemini-tool.interface";
 import { SearchModule } from "../search/search.module";
 import { SearchWebTool } from "../search/tools/search-web.tool";
+import { SpotifyModule } from "../spotify/spotify.module";
+import { SpotifyAuthService } from "../spotify/spotify-auth.service";
+import { PlaySongTool } from "../spotify/tools/play-song.tool";
+import { QueueSongTool } from "../spotify/tools/queue-song.tool";
+import { AddSongToPlaylistTool } from "../spotify/tools/add-song-to-playlist.tool";
 
 @Module({
-  imports: [SessionModule, NotionModule, SearchModule],
+  imports: [SessionModule, NotionModule, SearchModule, SpotifyModule],
   providers: [
     {
       provide: LiveSessionService,
@@ -24,12 +29,26 @@ import { SearchWebTool } from "../search/tools/search-web.tool";
         create: CreateNotionPageTool,
         write: WriteNotionPageTool,
         search: SearchWebTool,
-      ): GeminiTool[] => [read, create, write, search],
+        spotifyAuth: SpotifyAuthService,
+        play: PlaySongTool,
+        queue: QueueSongTool,
+        addToPlaylist: AddSongToPlaylistTool,
+      ): GeminiTool[] => [
+        read,
+        create,
+        write,
+        search,
+        ...(spotifyAuth.isConfigured() ? [play, queue, addToPlaylist] : []),
+      ],
       inject: [
         ReadNotionPageTool,
         CreateNotionPageTool,
         WriteNotionPageTool,
         SearchWebTool,
+        SpotifyAuthService,
+        PlaySongTool,
+        QueueSongTool,
+        AddSongToPlaylistTool,
       ],
     },
   ],
