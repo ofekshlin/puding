@@ -79,10 +79,17 @@ Project **Puding** is an ultra-low-latency, stateful, multimodal AI Agent (Jarvi
 - Web search tool schema declaration.
 - Web search tool execution loop.
 
+### Phase 5: Spotify Media Control
+
+- Spotify OAuth2 authorization-code flow with server-side refresh token (`SpotifyAuthService`).
+- `MusicService` abstraction implemented by `SpotifyService` over the Spotify Web API.
+- Tools: `play_song`, `queue_song`, `add_song_to_playlist`.
+- Playback visualization via the existing `spotify` integration card.
+
 ## Future Features
 
 - **Semantic Long-Term Memory (RAG):** PostgreSQL + `pgvector` setup, background summarization, and context injection.
-- **Spotify Media Control:** Spotify OAuth2, playback control tools (`play`, `pause`, `get_track`).
+- **Extended Spotify Transport Controls:** `pause_music`, `resume_music`, `skip_track`, `set_volume`, `get_current_track`.
 
 ## Plan-Driven Development Workflow
 
