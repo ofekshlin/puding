@@ -1,0 +1,126 @@
+name: Preview environment
+
+# Pairs the Vercel preview of a pull request with the Render service preview
+# built from the same pull request, so reviewers can exercise a new feature
+# end to end without touching production.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+concurrency:
+  group: preview-env-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  pair:
+    # Deployment secrets are unavailable to forks, and Render's own opt-out
+    # markers mean there is no backend preview to pair with.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && !contains(github.event.pull_request.labels.*.name, 'render-preview-skip')
+      && !contains(github.event.pull_request.title, '[skip preview]')
+      && !contains(github.event.pull_request.title, '[preview skip]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Until the deployment secrets are configured (see DEPLOYMENT.md) there is
+      # nothing to pair, and a red check would be noise rather than signal.
+      - name: Check that deployment secrets are configured
+        id: secrets
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          missing=""
+          for name in RENDER_API_KEY RENDER_SERVICE_ID VERCEL_TOKEN VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              missing="$missing $name"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Preview pairing is disabled: missing repository secrets$missing"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve Render preview and publish it to Vercel
+        id: pair
+        if: steps.secrets.outputs.configured == 'true'
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/pair-preview.js
+
+      # A single marker-tagged comment is reused across runs so pushing to the
+      # pull request does not bury it under duplicates.
+      - name: Comment the paired preview URLs
+        if: always() && steps.secrets.outputs.configured == 'true'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          BACKEND_URL: ${{ steps.pair.outputs.backend_url }}
+          WS_URL: ${{ steps.pair.outputs.ws_url }}
+          VERCEL_URL: ${{ steps.pair.outputs.vercel_url }}
+          SERVICE_NAME: ${{ steps.pair.outputs.service_name }}
+          COMMIT: ${{ steps.pair.outputs.commit }}
+          PAIR_OUTCOME: ${{ steps.pair.outcome }}
+        with:
+          script: |
+            const marker = '<!-- puding-preview-env -->';
+            const or = (value, fallback) => value || fallback;
+            const body = [
+              marker,
+              '### Preview environment',
+              '',
+              `Status: **${process.env.PAIR_OUTCOME === 'success' ? 'paired' : 'failed — see the workflow log'}**`,
+              '',
+              '| | |',
+              '| --- | --- |',
+              `| Frontend | ${or(process.env.VERCEL_URL, 'see the Vercel check on this pull request')} |`,
+              `| Backend | ${or(process.env.BACKEND_URL, 'not resolved')} |`,
+              `| WebSocket | \`${or(process.env.WS_URL, 'n/a')}\` |`,
+              `| Render service | \`${or(process.env.SERVICE_NAME, 'n/a')}\` @ \`${or(process.env.COMMIT, 'n/a')}\` |`,
+              '',
+              'The backend is a free instance and spins down when idle, so the first',
+              'connection can take up to a minute. Both instances are destroyed when',
+              'this pull request is merged or closed.',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((comment) => comment.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
