@@ -20,6 +20,8 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
           : "Connected & Ready";
       case "connecting":
         return "Connecting to Proxy...";
+      case "waking":
+        return "Waking backend (cold start, up to a minute)...";
       case "failed":
         return "Connection Error";
       default:

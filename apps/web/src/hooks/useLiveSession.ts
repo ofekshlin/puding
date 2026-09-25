@@ -1,9 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useAudioRecorder } from "./useAudioRecorder";
 import { useAudioPlayer } from "./useAudioPlayer";
+import { resolveWsUrl } from "../lib/backendUrl";
 
 export type ConnectionStatus =
-  "disconnected" | "connecting" | "connected" | "failed";
+  "disconnected" | "connecting" | "waking" | "connected" | "failed";
+
+// A free-tier Render instance that has spun down takes ~30-50s to answer, so
+// a handshake still pending after this long is reported as a cold start.
+const WAKING_NOTICE_MS = 4000;
 
 export interface ChatMessage {
   id: string;
@@ -25,7 +30,7 @@ export interface UseLiveSessionResult {
   audioLevel: number;
   messages: ChatMessage[];
   isThinking: boolean;
-  connect: () => void;
+  connect: () => Promise<void>;
   disconnect: () => void;
   toggleRecording: () => Promise<void>;
   addLog: (msg: string) => void;
@@ -38,6 +43,14 @@ export function useLiveSession(): UseLiveSessionResult {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const wakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearWakingTimer = useCallback(() => {
+    if (wakingTimerRef.current) {
+      clearTimeout(wakingTimerRef.current);
+      wakingTimerRef.current = null;
+    }
+  }, []);
 
   const {
     playChunk,
@@ -62,18 +75,26 @@ export function useLiveSession(): UseLiveSessionResult {
   const { isRecording, startRecording, stopRecording, audioLevel } =
     useAudioRecorder(handleAudioData);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     initPlayer();
     setStatus("connecting");
     setMessages([]);
     setIsThinking(false);
-    addLog("Connecting to WebSocket proxy...");
 
-    const wsUrl = process.env.NEXT_PUBLIC_SERVER_WS_URL || "ws://localhost:6601";
+    const wsUrl = await resolveWsUrl();
+    addLog(`Connecting to WebSocket proxy at ${wsUrl}...`);
+
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
+    clearWakingTimer();
+    wakingTimerRef.current = setTimeout(() => {
+      setStatus((prev) => (prev === "connecting" ? "waking" : prev));
+      addLog("Backend is cold, waiting for it to wake up...");
+    }, WAKING_NOTICE_MS);
+
     ws.onopen = () => {
+      clearWakingTimer();
       setStatus("connected");
       addLog("Connected to proxy. Initializing Gemini Live session...");
 
@@ -217,6 +238,7 @@ export function useLiveSession(): UseLiveSessionResult {
     };
 
     ws.onclose = () => {
+      clearWakingTimer();
       setStatus("disconnected");
       addLog("Connection closed.");
       stopRecording();
@@ -225,21 +247,30 @@ export function useLiveSession(): UseLiveSessionResult {
     };
 
     ws.onerror = (err) => {
+      clearWakingTimer();
       setStatus("failed");
       addLog("WebSocket connection error.");
       console.error(err);
       setIsThinking(false);
     };
-  }, [addLog, stopRecording, playChunk, stopPlayback, initPlayer]);
+  }, [
+    addLog,
+    stopRecording,
+    playChunk,
+    stopPlayback,
+    initPlayer,
+    clearWakingTimer,
+  ]);
 
   const disconnect = useCallback(() => {
+    clearWakingTimer();
     stopPlayback();
     setIsThinking(false);
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
-  }, [stopPlayback]);
+  }, [stopPlayback, clearWakingTimer]);
 
   const sendTextMessage = useCallback(
     (text: string) => {
@@ -299,11 +330,12 @@ export function useLiveSession(): UseLiveSessionResult {
 
   useEffect(() => {
     return () => {
+      clearWakingTimer();
       if (wsRef.current) {
         wsRef.current.close();
       }
     };
-  }, []);
+  }, [clearWakingTimer]);
 
   return {
     status,
