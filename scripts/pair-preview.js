@@ -181,7 +181,6 @@ async function publishToVercel(projectId, branch, wsUrl) {
     body: JSON.stringify({
       name: latest.name,
       deploymentId: latest.uid,
-      target: "preview",
       meta: { action: "redeploy" },
     }),
   });
