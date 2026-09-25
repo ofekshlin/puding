@@ -9,6 +9,10 @@ export class ConfigService {
   private readonly port: number;
   private readonly notionToken: string;
   private readonly tavilyApiKey?: string;
+  private readonly spotifyClientId?: string;
+  private readonly spotifyClientSecret?: string;
+  private readonly spotifyRefreshToken?: string;
+  private readonly spotifyRedirectUri: string;
   private readonly commitSha: string;
   private readonly serviceName: string;
   private readonly preview: boolean;
@@ -27,6 +31,12 @@ export class ConfigService {
     this.port = process.env.PORT ? parseInt(process.env.PORT, 10) : 6601;
     this.notionToken = process.env.NOTION_TOKEN as string;
     this.tavilyApiKey = process.env.TAVILY_API_KEY;
+    this.spotifyClientId = process.env.SPOTIFY_CLIENT_ID;
+    this.spotifyClientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+    this.spotifyRefreshToken = process.env.SPOTIFY_REFRESH_TOKEN;
+    this.spotifyRedirectUri =
+      process.env.SPOTIFY_REDIRECT_URI ??
+      `http://localhost:${this.port}/spotify/callback`;
     this.commitSha = process.env.RENDER_GIT_COMMIT ?? "unknown";
     this.serviceName = process.env.RENDER_SERVICE_NAME ?? "local";
     this.preview = process.env.IS_PULL_REQUEST === "true";
@@ -70,6 +80,34 @@ export class ConfigService {
    */
   public getTavilyApiKey(): string | undefined {
     return this.tavilyApiKey;
+  }
+
+  /**
+   * Retrieves the Spotify application client ID.
+   */
+  public getSpotifyClientId(): string | undefined {
+    return this.spotifyClientId;
+  }
+
+  /**
+   * Retrieves the Spotify application client secret.
+   */
+  public getSpotifyClientSecret(): string | undefined {
+    return this.spotifyClientSecret;
+  }
+
+  /**
+   * Retrieves the stored Spotify refresh token used for silent re-authorization.
+   */
+  public getSpotifyRefreshToken(): string | undefined {
+    return this.spotifyRefreshToken;
+  }
+
+  /**
+   * Retrieves the Spotify OAuth2 redirect URI used during provisioning.
+   */
+  public getSpotifyRedirectUri(): string {
+    return this.spotifyRedirectUri;
   }
 
   /**
