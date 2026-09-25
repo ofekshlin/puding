@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: puding-backend
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @puding/server build
+    startCommand: pnpm --filter @puding/server start
+    healthCheckPath: /health
+    previews:
+      # Every pull request gets its own temporary backend instance,
+      # destroyed when the pull request is merged or closed.
+      generation: automatic
+    buildFilter:
+      # Monorepo: pull requests touching only apps/web do not rebuild the backend.
+      paths:
+        - apps/server/**
+        - packages/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - turbo.json
+        - render.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Non-production GEMINI_API_KEY, NOTION_TOKEN, TAVILY_API_KEY and SPOTIFY_*
+      # values, shared by the base service and every preview instance.
+      - fromGroup: puding-preview-secrets
