@@ -17,7 +17,7 @@ describe("HealthController", () => {
   it("should report the deployment identity of a preview instance", async () => {
     const controller = await createController({
       getCommitSha: () => "abc1234",
-      getServiceName: () => "puding-server-pr-42",
+      getServiceName: () => "puding-backend-pr-42",
       isPreview: () => true,
     });
 
@@ -25,7 +25,7 @@ describe("HealthController", () => {
       status: "ok",
       commit: "abc1234",
       isPreview: true,
-      service: "puding-server-pr-42",
+      service: "puding-backend-pr-42",
     });
   });
 

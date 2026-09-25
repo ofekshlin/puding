@@ -1,6 +1,6 @@
 export const LOCAL_BACKEND_WS_URL = "ws://localhost:6601";
 
-export const DEFAULT_BACKEND_SERVICE = "puding-server";
+export const DEFAULT_BACKEND_SERVICE = "puding-backend";
 
 export interface RuntimeConfig {
   wsUrl: string | null;

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: puding-server
+    name: puding-backend
     runtime: node
     plan: free
     region: frankfurt
