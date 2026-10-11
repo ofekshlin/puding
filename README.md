@@ -137,6 +137,18 @@ Gives every pull request an isolated backend and frontend preview, wired to each
 
 > Render free instances spin down after ~15 minutes idle, so the first connection to a cold preview takes ~30–50s, and every preview draws on the account's 750 free instance-hours per month.
 
+### Phase 7: Devin Agent Control by Voice
+
+Lets the user plan, develop, and manage Devin sessions by voice from Puding — start plan or build sessions, check status, read Devin's latest reply, steer or approve, stop sessions, and hear proactive updates when a session needs input or finishes. Detailed design: `docs/design/phase_7_design.md`.
+
+- [ ] **29. WebSocket Access Guard:** Add `PUDING_ACCESS_TOKEN`, verify it (constant-time) on WebSocket connection and close unauthenticated sockets with `4401`, add a one-time `AccessTokenPrompt` storing the token in `localStorage`, and append it to the resolved WS URL. Must land before any Devin tool is reachable.
+- [ ] **30. Devin API Client:** Expose optional `DEVIN_API_KEY`, `DEVIN_ORG_ID`, `DEVIN_DEFAULT_REPO`, `DEVIN_REPO_ALIASES`, `DEVIN_MAX_ACU_PER_SESSION`, `DEVIN_MAX_ACTIVE_SESSIONS` via `ConfigService`; define the abstract `CodingAgentService` token and implement `DevinService` over the Devin REST API v3 (create, list, get, messages, send message, terminate) with plan/build prompt templates, `puding` tagging, ACU and concurrency caps, and spoken-friendly error translation.
+- [ ] **31. Devin Voice Tools & Session Resolution:** Implement `SessionResolver` (id → "it" → "latest" → ordinal → fuzzy title, with ambiguity reporting) and the `start_devin_session`, `list_devin_sessions`, `get_devin_session`, `message_devin_session`, `stop_devin_session` `GeminiTool`s with code-enforced confirmation for start/stop; register them under `"GEMINI_TOOLS"` when configured, and append a server-side system-instruction addendum.
+- [ ] **32. Devin Session Cards:** Add the `devin` integration type with `DevinSessionCard` (status badge, latest message, PR links, "Open in Devin"), `DevinSessionListCard` (numbered rows matching spoken ordinals), and a confirmation card.
+- [ ] **33. Proactive Devin Updates:** Add `DevinWatcher` polling `puding`-tagged sessions while a client is connected, detect transitions into waiting/finished/stopped states, and inject an idle-aware `[Devin update]` note into the Gemini session plus an update card.
+
+> Requires a Devin Personal Access Token and organization ID. Devin sessions consume ACUs; every Puding-created session is capped by `DEVIN_MAX_ACU_PER_SESSION`, and Devin tools are disabled in PR previews by default.
+
 ---
 
 ## Future Features
