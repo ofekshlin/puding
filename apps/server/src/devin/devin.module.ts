@@ -8,6 +8,10 @@ import { ListDevinSessionsTool } from "./tools/list-devin-sessions.tool";
 import { GetDevinSessionTool } from "./tools/get-devin-session.tool";
 import { MessageDevinSessionTool } from "./tools/message-devin-session.tool";
 import { StopDevinSessionTool } from "./tools/stop-devin-session.tool";
+import { ReadDevinMessageTool } from "./tools/read-devin-message.tool";
+import { AnswerDevinQuestionTool } from "./tools/answer-devin-question.tool";
+import { SpokenReader } from "./spoken-reader.service";
+import { DilemmaParser } from "./dilemma-parser.service";
 
 const DEVIN_TOOLS = [
   StartDevinSessionTool,
@@ -15,6 +19,8 @@ const DEVIN_TOOLS = [
   GetDevinSessionTool,
   MessageDevinSessionTool,
   StopDevinSessionTool,
+  ReadDevinMessageTool,
+  AnswerDevinQuestionTool,
 ];
 
 @Module({
@@ -22,6 +28,8 @@ const DEVIN_TOOLS = [
   providers: [
     { provide: CodingAgentService, useClass: DevinService },
     SessionResolver,
+    SpokenReader,
+    DilemmaParser,
     ...DEVIN_TOOLS,
   ],
   exports: [CodingAgentService, SessionResolver, ...DEVIN_TOOLS],
