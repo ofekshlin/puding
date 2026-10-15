@@ -19,6 +19,7 @@ export interface AgentSession {
   url: string;
   tags: string[];
   pullRequests: AgentPullRequest[];
+  acusConsumed?: number;
   updatedAt: number;
 }
 

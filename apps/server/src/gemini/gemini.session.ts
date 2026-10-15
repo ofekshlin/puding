@@ -150,11 +150,9 @@ export class GeminiSession implements LiveSession {
           ],
           speechConfig: config.generationConfig?.speechConfig,
         },
-        systemInstruction: config.systemInstruction
-          ? {
-              parts: [{ text: config.systemInstruction }],
-            }
-          : undefined,
+        systemInstruction: this.buildSystemInstruction(
+          config.systemInstruction,
+        ),
         tools:
           this.tools.length > 0
             ? [
@@ -169,6 +167,26 @@ export class GeminiSession implements LiveSession {
     };
 
     this.sendToGemini(JSON.stringify(geminiSetupMsg));
+  }
+
+  /**
+   * Appends the server-owned instructions of the registered tools to the
+   * client's system instruction, so a stale client cannot drop them.
+   */
+  private buildSystemInstruction(
+    clientInstruction?: string,
+  ): { parts: { text: string }[] } | undefined {
+    const toolInstructions = [
+      ...new Set(
+        this.tools
+          .map((t) => t.instructions)
+          .filter((text): text is string => Boolean(text)),
+      ),
+    ];
+    const text = [clientInstruction, ...toolInstructions]
+      .filter(Boolean)
+      .join("\n\n");
+    return text ? { parts: [{ text }] } : undefined;
   }
 
   /**
@@ -189,7 +207,9 @@ export class GeminiSession implements LiveSession {
           throw new Error(`Unknown tool: ${call.name}`);
         }
 
-        const { output, clientIntegration } = await tool.execute(call.args);
+        const { output, clientIntegration } = await tool.execute(call.args, {
+          sessionId: this.sessionId,
+        });
 
         if (clientIntegration) {
           this.sendToClient({

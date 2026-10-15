@@ -23,6 +23,7 @@ export class ConfigService {
   private readonly devinRepoAliases: Record<string, string>;
   private readonly devinMaxAcuPerSession: number;
   private readonly devinMaxActiveSessions: number;
+  private readonly devinEnabledInPreview: boolean;
 
   // Define required environment variables here for easy extension
   private readonly requiredEnvVars = ["GEMINI_API_KEY", "NOTION_TOKEN"];
@@ -62,6 +63,7 @@ export class ConfigService {
       process.env.DEVIN_MAX_ACTIVE_SESSIONS,
       3,
     );
+    this.devinEnabledInPreview = process.env.DEVIN_ENABLE_IN_PREVIEW === "true";
   }
 
   private static parsePositiveInt(
@@ -217,5 +219,12 @@ export class ConfigService {
    */
   public getDevinMaxActiveSessions(): number {
     return this.devinMaxActiveSessions;
+  }
+
+  /**
+   * Whether Devin tools may be registered in a pull-request preview.
+   */
+  public isDevinEnabledInPreview(): boolean {
+    return this.devinEnabledInPreview;
   }
 }
