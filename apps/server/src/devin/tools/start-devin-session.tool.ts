@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "../../config/config.service";
 import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import { devinCard, sessionCard } from "../devin-card";
 import {
   AgentIntent,
   AgentMode,
@@ -81,10 +82,16 @@ export class StartDevinSessionTool extends GeminiTool {
       "the default repo";
 
     if (args.confirmed !== true) {
+      const readBack = `Start a Devin ${intent} session on ${repoLabel}: "${task}"?`;
       return {
+        clientIntegration: devinCard({
+          kind: "confirm",
+          action: "start",
+          readBack,
+        }),
         output: {
           status: "needs_confirmation",
-          readBack: `Start a Devin ${intent} session on ${repoLabel}: "${task}"?`,
+          readBack,
           instruction:
             "Read this back and call again with confirmed=true only after the user says yes.",
         },
@@ -100,6 +107,7 @@ export class StartDevinSessionTool extends GeminiTool {
     this.resolver.setFocus(context, session);
 
     return {
+      clientIntegration: sessionCard(session),
       output: {
         status: "started",
         title: session.title,
