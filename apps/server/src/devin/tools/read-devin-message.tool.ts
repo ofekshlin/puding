@@ -1,6 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
-import { AgentMessage, CodingAgentService } from "../coding-agent.interface";
+import { devinCard } from "../devin-card";
+import {
+  AgentMessage,
+  AgentSession,
+  CodingAgentService,
+} from "../coding-agent.interface";
 import { DEVIN_TOOL_INSTRUCTIONS } from "../devin-instructions";
 import { DilemmaParser } from "../dilemma-parser.service";
 import { SessionResolver } from "../session-resolver.service";
@@ -69,7 +74,10 @@ export class ReadDevinMessageTool extends GeminiTool {
         navigate,
       );
       if (continued) {
-        return { output: { session: session.title, ...continued } };
+        return {
+          clientIntegration: this.readingCard(context, session),
+          output: { session: session.title, ...continued },
+        };
       }
     }
 
@@ -91,6 +99,14 @@ export class ReadDevinMessageTool extends GeminiTool {
       if (dilemma) {
         this.reader.rememberDilemma(context, session.id, dilemma);
         return {
+          clientIntegration: devinCard({
+            kind: "question",
+            title: session.title,
+            url: session.url,
+            question: dilemma.question,
+            options: dilemma.options,
+            recommendation: dilemma.recommendation,
+          }),
           output: {
             kind: "question",
             session: session.title,
@@ -105,12 +121,23 @@ export class ReadDevinMessageTool extends GeminiTool {
       }
     }
 
+    const read = this.reader.read(context, session.id, message, navigate);
     return {
-      output: {
-        session: session.title,
-        ...this.reader.read(context, session.id, message, navigate),
-      },
+      clientIntegration: this.readingCard(context, session),
+      output: { session: session.title, ...read },
     };
+  }
+
+  private readingCard(context: ToolContext | undefined, session: AgentSession) {
+    const view = this.reader.cursorView(context);
+    return view
+      ? devinCard({
+          kind: "reading",
+          title: session.title,
+          url: session.url,
+          ...view,
+        })
+      : undefined;
   }
 
   private pick(
@@ -122,7 +149,11 @@ export class ReadDevinMessageTool extends GeminiTool {
       const newestFirst = [...messages].reverse();
       return (
         newestFirst.find((m) => /\bplan\b/i.test(m.text)) ??
-        newestFirst.find((m) => SpokenReader.toSections(m.text).length >= 3) ??
+        newestFirst.find(
+          (m) =>
+            SpokenReader.toSections(m.text).length >= 2 &&
+            !this.dilemmas.parse(m.text),
+        ) ??
         latest
       );
     }

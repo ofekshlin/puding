@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import { sessionCard } from "../devin-card";
 import { CodingAgentService } from "../coding-agent.interface";
 import { DEVIN_TOOL_INSTRUCTIONS } from "../devin-instructions";
 import { SessionResolver } from "../session-resolver.service";
@@ -51,6 +52,7 @@ export class GetDevinSessionTool extends GeminiTool {
       session.state === "waiting_for_approval";
 
     return {
+      clientIntegration: sessionCard(session, latest?.text),
       output: {
         title: session.title,
         state: spokenState(session),

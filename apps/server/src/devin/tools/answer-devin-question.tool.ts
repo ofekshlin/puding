@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import { sessionCard } from "../devin-card";
 import { CodingAgentService } from "../coding-agent.interface";
 import { DEVIN_TOOL_INSTRUCTIONS } from "../devin-instructions";
 import { DilemmaParser } from "../dilemma-parser.service";
@@ -97,6 +98,7 @@ export class AnswerDevinQuestionTool extends GeminiTool {
 
     const updated = await this.codingAgent.sendMessage(session.id, reply);
     return {
+      clientIntegration: sessionCard(updated),
       output: { status: "sent", sent: reply, state: spokenState(updated) },
     };
   }

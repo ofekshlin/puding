@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import { devinCard } from "../devin-card";
 import { AgentSession, CodingAgentService } from "../coding-agent.interface";
 import { DEVIN_TOOL_INSTRUCTIONS } from "../devin-instructions";
 import { SessionResolver } from "../session-resolver.service";
@@ -65,6 +66,16 @@ export class ListDevinSessionsTool extends GeminiTool {
     this.resolver.rememberList(context, sessions);
 
     return {
+      clientIntegration: devinCard({
+        kind: "list",
+        filter,
+        sessions: sessions.map((s, i) => ({
+          index: i + 1,
+          title: s.title,
+          state: s.state,
+          url: s.url,
+        })),
+      }),
       output: {
         filter,
         count: sessions.length,
