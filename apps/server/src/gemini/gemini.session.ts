@@ -9,12 +9,30 @@ import {
 import { LiveSession } from "../session/live-session.interface";
 import { SessionTracker } from "../session/session-tracker.interface";
 import { GeminiTool } from "./gemini-tool.interface";
+import {
+  DevinSessionUpdate,
+  DevinUpdateSubscriber,
+} from "../devin/devin-watcher.service";
 
-export class GeminiSession implements LiveSession {
+/** Source of proactive Devin updates for a voice session. */
+export interface DevinUpdateSource {
+  subscribe(subscriber: DevinUpdateSubscriber): () => void;
+}
+
+/** Quiet time after the user's last words before a system note may speak. */
+export const USER_QUIET_MS = 1500;
+
+export class GeminiSession implements LiveSession, DevinUpdateSubscriber {
   private readonly logger: Logger;
   private readonly geminiWs: WebSocket;
   private isGeminiReady = false;
   private readonly sendQueue: Array<string | Buffer> = [];
+  private isSetupComplete = false;
+  private isModelBusy = false;
+  private lastUserSpeechAt = 0;
+  private readonly pendingNotes: string[] = [];
+  private noteTimer?: NodeJS.Timeout;
+  private readonly unsubscribeDevin?: () => void;
 
   constructor(
     private readonly clientWs: WebSocket,
@@ -22,6 +40,7 @@ export class GeminiSession implements LiveSession {
     public readonly sessionId: string,
     private readonly sessionTracker: SessionTracker,
     private readonly tools: GeminiTool[],
+    devinUpdates?: DevinUpdateSource,
   ) {
     this.logger = new Logger(`${GeminiSession.name}[${sessionId}]`);
     const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
@@ -30,6 +49,7 @@ export class GeminiSession implements LiveSession {
     this.geminiWs = new WebSocket(geminiUrl);
 
     this.initialize();
+    this.unsubscribeDevin = devinUpdates?.subscribe(this);
   }
 
   /**
@@ -81,10 +101,13 @@ export class GeminiSession implements LiveSession {
       if (response.setupComplete) {
         this.logger.log("Setup handshake confirmed by Gemini.");
         this.sendToClient({ type: "setup_complete" });
+        this.isSetupComplete = true;
+        this.flushNotes();
         return;
       }
 
       if (response.toolCall) {
+        this.isModelBusy = true;
         this.handleToolCall(response.toolCall);
       }
 
@@ -94,10 +117,12 @@ export class GeminiSession implements LiveSession {
       if (content.interrupted) {
         this.logger.log("Gemini model execution interrupted (barge-in).");
         this.sendToClient({ type: "interrupted" });
+        this.isModelBusy = false;
         return;
       }
 
       if (content.inputTranscription?.text) {
+        this.lastUserSpeechAt = Date.now();
         this.sendToClient({
           type: "content",
           userTranscription: content.inputTranscription.text,
@@ -112,6 +137,7 @@ export class GeminiSession implements LiveSession {
       }
 
       if (content.modelTurn?.parts) {
+        this.isModelBusy = true;
         for (const part of content.modelTurn.parts) {
           const text = part.text;
           const audio = part.inlineData?.data;
@@ -131,6 +157,8 @@ export class GeminiSession implements LiveSession {
           type: "content",
           turnComplete: true,
         });
+        this.isModelBusy = false;
+        this.flushNotes();
       }
     } catch (error) {
       this.logger.error("Error parsing Gemini message payload:", error);
@@ -246,10 +274,54 @@ export class GeminiSession implements LiveSession {
    * Forwards general text turns to Gemini.
    */
   public sendClientContent(content: any): void {
+    this.isModelBusy = true;
     const geminiContentMsg = {
       clientContent: content,
     };
     this.sendToGemini(JSON.stringify(geminiContentMsg));
+  }
+
+  /**
+   * Shows a Devin update card and queues its note for the voice model.
+   */
+  public onDevinUpdate(update: DevinSessionUpdate): void {
+    this.sendToClient({ type: "content", integration: update.card });
+    this.injectSystemNote(update.note);
+  }
+
+  /**
+   * Queues a system note; it is sent as a turn once the model is idle and the
+   * user has been quiet, so it never talks over anyone.
+   */
+  public injectSystemNote(text: string): void {
+    this.pendingNotes.push(text);
+    this.flushNotes();
+  }
+
+  private flushNotes(): void {
+    if (!this.pendingNotes.length || this.noteTimer) return;
+    if (!this.isSetupComplete || this.isModelBusy) return;
+
+    const quietFor = Date.now() - this.lastUserSpeechAt;
+    if (quietFor < USER_QUIET_MS) {
+      this.noteTimer = setTimeout(() => {
+        this.noteTimer = undefined;
+        this.flushNotes();
+      }, USER_QUIET_MS - quietFor);
+      return;
+    }
+
+    const text = this.pendingNotes.splice(0).join("\n\n");
+    this.logger.log("Injecting system note into Gemini session.");
+    this.isModelBusy = true;
+    this.sendToGemini(
+      JSON.stringify({
+        clientContent: {
+          turns: [{ role: "user", parts: [{ text }] }],
+          turnComplete: true,
+        },
+      }),
+    );
   }
 
   /**
@@ -272,6 +344,8 @@ export class GeminiSession implements LiveSession {
    * Cleans up the Gemini connection.
    */
   public destroy(): void {
+    this.unsubscribeDevin?.();
+    if (this.noteTimer) clearTimeout(this.noteTimer);
     if (
       this.geminiWs.readyState === WebSocket.OPEN ||
       this.geminiWs.readyState === WebSocket.CONNECTING

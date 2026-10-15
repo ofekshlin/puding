@@ -24,6 +24,7 @@ export class ConfigService {
   private readonly devinMaxAcuPerSession: number;
   private readonly devinMaxActiveSessions: number;
   private readonly devinEnabledInPreview: boolean;
+  private readonly devinPollIntervalMs: number;
 
   // Define required environment variables here for easy extension
   private readonly requiredEnvVars = ["GEMINI_API_KEY", "NOTION_TOKEN"];
@@ -64,6 +65,10 @@ export class ConfigService {
       3,
     );
     this.devinEnabledInPreview = process.env.DEVIN_ENABLE_IN_PREVIEW === "true";
+    this.devinPollIntervalMs = Math.max(
+      ConfigService.parsePositiveInt(process.env.DEVIN_POLL_INTERVAL_MS, 20000),
+      5000,
+    );
   }
 
   private static parsePositiveInt(
@@ -226,5 +231,12 @@ export class ConfigService {
    */
   public isDevinEnabledInPreview(): boolean {
     return this.devinEnabledInPreview;
+  }
+
+  /**
+   * How often Devin sessions are polled while a client is connected (min 5s).
+   */
+  public getDevinPollIntervalMs(): number {
+    return this.devinPollIntervalMs;
   }
 }
