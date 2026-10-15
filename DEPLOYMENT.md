@@ -98,14 +98,20 @@ The backend must be deployed first so we have the production WebSocket URL ready
 
 In the **Environment Variables** section on Render, add:
 
-| Key                   | Value / Description                                                      | Required                            |
-| :-------------------- | :----------------------------------------------------------------------- | :---------------------------------- |
-| `PORT`                | `10000` _(Render sets this automatically)_                               | Auto                                |
-| `GEMINI_API_KEY`      | Your Google AI Studio API key                                            | **Yes**                             |
-| `NOTION_TOKEN`        | Your Notion internal integration secret (`ntn_...`)                      | **Yes**                             |
-| `TAVILY_API_KEY`      | Your Tavily Search API key (`tvly-...`)                                  | Optional                            |
-| `PUDING_ACCESS_TOKEN` | Long random secret clients must enter once (e.g. `openssl rand -hex 32`) | **Yes** (open to anyone without it) |
-| `NODE_ENV`            | `production`                                                             | Recommended                         |
+| Key                         | Value / Description                                                       | Required                            |
+| :-------------------------- | :------------------------------------------------------------------------ | :---------------------------------- |
+| `PORT`                      | `10000` _(Render sets this automatically)_                                | Auto                                |
+| `GEMINI_API_KEY`            | Your Google AI Studio API key                                             | **Yes**                             |
+| `NOTION_TOKEN`              | Your Notion internal integration secret (`ntn_...`)                       | **Yes**                             |
+| `TAVILY_API_KEY`            | Your Tavily Search API key (`tvly-...`)                                   | Optional                            |
+| `PUDING_ACCESS_TOKEN`       | Long random secret clients must enter once (e.g. `openssl rand -hex 32`)  | **Yes** (open to anyone without it) |
+| `DEVIN_API_KEY`             | Devin personal access token (`cog_...`) for voice control of Devin        | Optional                            |
+| `DEVIN_ORG_ID`              | Devin organization ID (`org-...`); required together with `DEVIN_API_KEY` | Optional                            |
+| `DEVIN_DEFAULT_REPO`        | Repo Devin works on when none is named (e.g. `ofekshlin/puding`)          | Optional                            |
+| `DEVIN_REPO_ALIASES`        | Spoken repo names, e.g. `puding=ofekshlin/puding,site=ofekshlin/site`     | Optional                            |
+| `DEVIN_MAX_ACU_PER_SESSION` | ACU cap on every Puding-created Devin session (default `10`)              | Optional                            |
+| `DEVIN_MAX_ACTIVE_SESSIONS` | Max Puding-created Devin sessions working at once (default `3`)           | Optional                            |
+| `NODE_ENV`                  | `production`                                                              | Recommended                         |
 
 #### 4. Deploy and Note the WebSocket Endpoint
 
@@ -202,7 +208,8 @@ environment group it references:
 2. Add **non-production** values for `GEMINI_API_KEY`, `NOTION_TOKEN`,
    `TAVILY_API_KEY` and the `SPOTIFY_*` credentials, plus a
    `PUDING_ACCESS_TOKEN`. Previews inherit these, so production keys must not
-   be placed here.
+   be placed here. Leave `DEVIN_API_KEY` out of this group: previews should not
+   be able to start paid Devin sessions.
 3. Link the group to the `puding-backend` service.
 
 **GitHub** — add these repository secrets (Settings &rarr; Secrets and variables
