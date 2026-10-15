@@ -90,7 +90,8 @@ Project **Puding** is an ultra-low-latency, stateful, multimodal AI Agent (Jarvi
 
 - WebSocket access guard (`PUDING_ACCESS_TOKEN`) before any paid tool is reachable.
 - `CodingAgentService` abstraction implemented by `DevinService` over the Devin REST API v3.
-- Tools: `start_devin_session`, `list_devin_sessions`, `get_devin_session`, `message_devin_session`, `stop_devin_session`, with voice-friendly session resolution.
+- Tools: `start_devin_session`, `list_devin_sessions`, `get_devin_session`, `message_devin_session`, `stop_devin_session`, `read_devin_message`, `answer_devin_question`, with voice-friendly session resolution.
+- `SpokenReader` and `DilemmaParser`: plans read section by section and questions read with every option, word for word.
 - `devin` integration cards and proactive status updates via `DevinWatcher`.
 
 ## Future Features

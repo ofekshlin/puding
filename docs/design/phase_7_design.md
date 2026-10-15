@@ -7,7 +7,8 @@ This phase turns Puding into a voice front-end for [Devin](https://devin.ai). Fr
 1. **Plan** — "Puding, ask Devin to plan dark mode for the web app" → a Devin session investigates the repo and replies with a plan, without writing code.
 2. **Develop** — "Go ahead with the plan" / "Have Devin implement stage 30 of Puding" → the session builds it and opens a PR.
 3. **Manage** — "What are my Devin sessions doing?", "What did Devin say on the login bug?", "Tell it to use pnpm", "Stop the Spotify session".
-4. **Get notified** — while Puding is open, it proactively says "Devin finished the dark-mode plan, want me to read it?" when a session needs input or completes.
+4. **Listen** — "Read me the plan" → Puding reads Devin's plan aloud section by section ("next", "repeat", "skip to stage 3"); "What's Devin asking?" → Puding reads the question and every option word for word, and "option two" answers it.
+5. **Get notified** — while Puding is open, it proactively says "Devin finished the dark-mode plan, want me to read it?" when a session needs input or completes.
 
 Design constraints inherited from `.agents/AGENTS.md`:
 
@@ -81,19 +82,23 @@ puding/
 │   │   │   │   ├── devin.service.spec.ts
 │   │   │   │   ├── session-resolver.service.ts      # "the login one" -> devin-xxxx
 │   │   │   │   ├── session-resolver.service.spec.ts
-│   │   │   │   ├── devin-watcher.service.ts         # polls & emits status transitions (stage 32)
+│   │   │   │   ├── spoken-reader.service.ts         # Markdown -> speakable sections + reading cursor
+│   │   │   │   ├── dilemma-parser.service.ts        # question/options/recommendation extraction
+│   │   │   │   ├── devin-watcher.service.ts         # polls & emits status transitions (stage 34)
 │   │   │   │   ├── devin.module.ts
 │   │   │   │   └── tools/
 │   │   │   │       ├── start-devin-session.tool.ts
 │   │   │   │       ├── list-devin-sessions.tool.ts
 │   │   │   │       ├── get-devin-session.tool.ts
 │   │   │   │       ├── message-devin-session.tool.ts
+│   │   │   │       ├── read-devin-message.tool.ts
+│   │   │   │       ├── answer-devin-question.tool.ts
 │   │   │   │       └── stop-devin-session.tool.ts
 │   │   │   └── types/server-message.ts              # integration.type gains "devin"
 │   │   └── .env.example                             # DEVIN_* + PUDING_ACCESS_TOKEN
 │   └── web/
 │       └── src/
-│           ├── components/ChatWindow.tsx            # DevinSessionCard + DevinSessionListCard
+│           ├── components/ChatWindow.tsx            # Devin session, list, reading, question cards
 │           ├── components/AccessTokenPrompt.tsx     # one-time token entry (stage 29)
 │           ├── hooks/useLiveSession.ts              # appends ?token= to the WS URL
 │           └── app/globals.css                      # status badge colours
@@ -164,7 +169,7 @@ export abstract class CodingAgentService {
   - **build** — passes the task through, suffixed with _"Open a PR when done."_
   - Always sets `tags: ["puding", "puding-<intent>"]`, `max_acu_limit` from config, `repos: [repo ?? DEVIN_DEFAULT_REPO]`, and a `title` derived from the task (first ~60 chars) so it is easy to refer to by voice.
 - Repo resolution: `DEVIN_REPO_ALIASES="puding=ofekshlin/puding,site=ofekshlin/site"` lets the user say "on puding" instead of `owner/name`. Unknown aliases are rejected with the list of known ones.
-- Messages: Devin replies are Markdown and can be long. `getMessages` returns raw text; tools produce a `spokenSummary` by stripping code fences, links and tables and truncating to ~1,200 characters, while the full text goes to the client card.
+- Messages: Devin replies are Markdown and can be long. `getMessages` returns raw text. `get_devin_session` returns only a short `spokenSummary` (the status glance); reading a message in full goes through the spoken reader (§4.5), and the full Markdown always goes to the client card.
 
 ### 4.3 Session resolution (`session-resolver.service.ts`)
 
@@ -178,38 +183,72 @@ Voice users cannot say `devin-4f1c…`. Every tool that targets a session accept
 
 Ambiguity returns `{ status: "ambiguous", candidates: [title, …] }` so Gemini asks "Did you mean the login bug or the login page redesign?" instead of guessing. Focus state is per `GeminiSession` (keyed by Puding `sessionId`), not global.
 
-### 4.4 Module wiring (`devin.module.ts`)
+### 4.5 Spoken reader (`spoken-reader.service.ts`)
+
+Plans are long, structured Markdown, so they can't be returned as one blob for the model to summarize. `SpokenReader` turns a Devin message into **speakable sections**:
+
+- **Sectioning:** split on headings, then top-level numbered/bulleted items when there are no headings; merge tiny sections and split any section over ~600 spoken characters at sentence boundaries. Each section gets a title ("Stage 2 of 4: Session resolution").
+- **Speech normalisation:** code blocks → _"there's a code snippet on screen"_; links → their text only; inline code → plain words (`useLiveSession` → "use live session"); tables → one short line per row ("Stage 29 — access guard"); emphasis, HTML and emoji stripped.
+- **Reading cursor** per Puding conversation: `{ sessionId, eventId, sectionIndex }`, so "next", "repeat", "go back" and "skip to stage 3" work across turns. The cursor resets when a new Devin message arrives.
+- **Outline first:** for messages with more than three sections, the first read returns the outline ("The plan has 4 stages: …. Want me to go through them?") before section 1.
+
+Tool output carries `verbatim: true` plus the normalised text, and the server-side instruction (§5) tells Gemini to **read verbatim text exactly, without paraphrasing**. Sections are short so the model has no reason to compress them. Risk: the Live model may still paraphrase. The card always shows the exact text, and stage 32 adds a live check that the spoken transcript (`outputTranscription`) closely matches the section.
+
+### 4.6 Dilemmas (`dilemma-parser.service.ts`)
+
+When a session is `waiting_for_user`, Devin's latest message is usually a question, often with options ("Option A: Postgres … Option B: SQLite … I recommend A because …"). `DilemmaParser` extracts:
+
+```typescript
+interface Dilemma {
+  question: string; // the sentence(s) ending in "?" or the lead-in before the options
+  options: { label: string; text: string }[]; // "1"/"A"/"Option B" + full text
+  recommendation?: { label?: string; reason: string }; // Devin's own pick, if stated
+}
+```
+
+- Detection covers numbered or lettered lists, "Option X:" blocks, and "X or Y?" questions. If nothing parses, the whole message is read verbatim through the spoken reader, so a question is never summarized away.
+- Puding reads the question, **every option in full**, then Devin's recommendation, and ends with "Which one?"
+- **Answering:** `answer_devin_question(session, choice?, extra?)` resolves "option two", "B", "the second one", "the one you recommended" or a fuzzy option match, and sends Devin an unambiguous reply: _"Option 2 — SQLite: <full option text>. <extra>"_. Free-form answers ("neither, use Redis") go through with `extra` only.
+- API note: the v3 messages endpoint exposes Devin's messages as plain `message` text. Stage 30 must check whether Devin's interactive questions carry structured options in the API. If they do, use them instead of text parsing.
+
+### 4.7 Module wiring (`devin.module.ts`)
 
 ```typescript
 providers: [
   { provide: CodingAgentService, useClass: DevinService },
   SessionResolver,
+  SpokenReader,
+  DilemmaParser,
   DevinWatcher,
   StartDevinSessionTool,
   ListDevinSessionsTool,
   GetDevinSessionTool,
   MessageDevinSessionTool,
   StopDevinSessionTool,
+  ReadDevinMessageTool,
+  AnswerDevinQuestionTool,
 ];
 ```
 
-`gemini.module.ts` spreads the five tools into `"GEMINI_TOOLS"` only when `codingAgent.isConfigured()` (and not in a preview unless `DEVIN_ENABLE_IN_PREVIEW=true`), mirroring the Spotify gating.
+`gemini.module.ts` spreads the seven tools into `"GEMINI_TOOLS"` only when `codingAgent.isConfigured()` (and not in a preview unless `DEVIN_ENABLE_IN_PREVIEW=true`), mirroring the Spotify gating.
 
 ---
 
 ## 5. Gemini Tool Schemas
 
-| Tool                    | Args                                                                                           | Behaviour                                                                                                                                                       |
-| ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `start_devin_session`   | `task` (req), `intent` (`plan`\|`build`, default `plan`), `repo?`, `mode?`, `confirmed` (bool) | If `confirmed` is false, returns `{ status: "needs_confirmation", readBack }` and does nothing. Otherwise creates the session, sets focus, returns title + URL. |
-| `list_devin_sessions`   | `filter?` (`active`\|`needs_me`\|`all`, default `active`), `limit?` (default 5)                | Returns compact rows `{ index, title, state, prCount }`; stores the list for ordinal resolution.                                                                |
-| `get_devin_session`     | `session` (req), `include_last_messages?` (default 1)                                          | State, PR URLs, ACUs used, and `spokenSummary` of Devin's latest message. Sets focus.                                                                           |
-| `message_devin_session` | `session` (req), `message` (req)                                                               | Sends verbatim text (approvals, answers, steering). Sets focus.                                                                                                 |
-| `stop_devin_session`    | `session` (req), `confirmed` (bool)                                                            | Same confirmation contract as start; terminates (irreversible).                                                                                                 |
+| Tool                    | Args                                                                                                                                    | Behaviour                                                                                                                                                                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `start_devin_session`   | `task` (req), `intent` (`plan`\|`build`, default `plan`), `repo?`, `mode?`, `confirmed` (bool)                                          | If `confirmed` is false, returns `{ status: "needs_confirmation", readBack }` and does nothing. Otherwise creates the session, sets focus, returns title + URL.                               |
+| `list_devin_sessions`   | `filter?` (`active`\|`needs_me`\|`all`, default `active`), `limit?` (default 5)                                                         | Returns compact rows `{ index, title, state, prCount }`; stores the list for ordinal resolution.                                                                                              |
+| `get_devin_session`     | `session` (req)                                                                                                                         | Status glance: state, PR URLs, ACUs used, one-line `spokenSummary` of Devin's latest message, and `hasQuestion`. Sets focus.                                                                  |
+| `read_devin_message`    | `session` (req), `what?` (`latest`\|`plan`\|`question`), `navigate?` (`start`\|`next`\|`repeat`\|`previous`\|`outline`\|section number) | Returns `{ title, text, index, total, verbatim: true }` from the spoken reader (§4.5); `plan` picks the latest plan-like message; `question` returns the parsed `Dilemma` (§4.6). Sets focus. |
+| `answer_devin_question` | `session` (req), `choice?` (number/label/"recommended"), `extra?`                                                                       | Resolves the option against the last read `Dilemma` and sends the full option text + `extra` to Devin. Sets focus.                                                                            |
+| `message_devin_session` | `session` (req), `message` (req)                                                                                                        | Sends verbatim text (approvals, answers, steering). Sets focus.                                                                                                                               |
+| `stop_devin_session`    | `session` (req), `confirmed` (bool)                                                                                                     | Same confirmation contract as start; terminates (irreversible).                                                                                                                               |
 
 **Confirmation is enforced in code, not only in the prompt**: the two costly/irreversible tools refuse to act unless `confirmed: true`, so a misheard utterance cannot spend ACUs or kill a session. The read-back ("Start a Devin **plan** session on **puding**: _add dark mode toggle_?") is spoken first.
 
-**Server-owned instructions:** today the system instruction comes from the client (`useLiveSession`). This phase adds a server-side addendum appended in `GeminiSession.setup()` whenever Devin tools are registered — summarise Devin's Markdown in one or two sentences, never read code or URLs aloud, always read back before `start`/`stop`, default to `plan` intent when the user says "plan" or is vague. Keeping it server-side means a stale or tampered client cannot strip the safety rules.
+**Server-owned instructions:** today the system instruction comes from the client (`useLiveSession`). This phase adds a server-side addendum appended in `GeminiSession.setup()` whenever Devin tools are registered — summarise Devin's Markdown in one or two sentences for status questions, but **read any tool text marked `verbatim` exactly as given**, read every option of a question before asking for a choice, never read code or URLs aloud, always read back before `start`/`stop`, default to `plan` intent when the user says "plan" or is vague. Keeping it server-side means a stale or tampered client cannot strip the safety rules.
 
 Example conversation:
 
@@ -219,8 +258,16 @@ Example conversation:
 > **Puding:** _(confirmed=true)_ Started. I'll tell you when the plan is ready.
 > _…4 minutes later, watcher fires…_
 > **Puding:** Devin's dark-mode plan is ready — three stages, starting with CSS variables. Want the details or should I tell it to go ahead?
+> **User:** Read me the plan.
+> **Puding:** _(read_devin_message what="plan")_ The plan has 3 stages: CSS variables, the toggle component, and persisting the choice. Stage 1 of 3: CSS variables. Move every colour in globals.css into custom properties …
+> **User:** Next.
+> **Puding:** _(navigate="next")_ Stage 2 of 3: the toggle component …
 > **User:** Go ahead, but skip the settings page.
 > **Puding:** _(message_devin_session session="it")_ Sent.
+> _…later…_
+> **Puding:** Devin has a question on dark mode. Should the theme follow the system setting? Option 1: always follow the system. Option 2: default to the system but let the user override it, stored in local storage. Devin recommends option 2 because it keeps the toggle meaningful. Which one?
+> **User:** Two, and default to dark.
+> **Puding:** _(answer_devin_question choice=2 extra="default to dark")_ Sent: option 2, defaulting to dark.
 
 ---
 
@@ -243,11 +290,11 @@ Devin sessions run for minutes to hours, far longer than a voice turn.
 
 - A singleton `DevinWatcher` polls `GET /sessions` every `DEVIN_POLL_INTERVAL_MS` (default 20s) **only while at least one Puding client is connected**, and keeps the last known state of each `puding`-tagged session.
 - On a transition **into** a notify state (§2 table), it emits a `DevinSessionUpdate` to every connected `GeminiSession` via a small subscriber interface (no gateway coupling).
-- `GeminiSession.injectSystemNote(text)` queues the note and, once the model is idle (after the next `turnComplete` and no user speech in the last ~1.5s), sends it as a `clientContent` turn: _"[Devin update] Session 'dark mode toggle' is now waiting for the user. Devin said: … Tell the user in one sentence and offer next steps."_ It never interrupts Puding mid-sentence or barges over the user.
+- `GeminiSession.injectSystemNote(text)` queues the note and, once the model is idle (after the next `turnComplete` and no user speech in the last ~1.5s), sends it as a `clientContent` turn: _"[Devin update] Session 'dark mode toggle' is now waiting for the user. Devin said: … Tell the user in one sentence and offer next steps."_ When `DilemmaParser` finds a question, the note says so ("Devin has a question with 2 options") and primes the reading cursor, so "what's the question?" goes straight to it. It never interrupts Puding mid-sentence or barges over the user.
 - The client also receives a `devin` integration card for the update, so the change is visible even when audio is muted.
 - Because state lives in Devin (via the `puding` tag), nothing is lost when the browser reconnects or the Gemini session rotates; the first poll after (re)connect only seeds state and does not announce historical transitions.
 
-Out of scope here: notifications while Puding is closed (see §10).
+Out of scope here: notifications while Puding is closed (see §11).
 
 ---
 
@@ -257,6 +304,8 @@ Out of scope here: notifications while Puding is closed (see §10).
 
 - **`session`** — `DevinSessionCard`: title, status badge (colour per state), repo, latest Devin message (full Markdown, collapsed to 4 lines), PR links, and "Open in Devin" linking to `url`.
 - **`list`** — `DevinSessionListCard`: numbered rows (matching the spoken ordinals) with title + badge.
+- **`reading`** — the section currently being read, highlighted inside the full message, with an "n of N" indicator.
+- **`question`** — the question, numbered options matching what Puding said, and Devin's recommendation badge.
 - **`confirm`** — the read-back for start/stop, rendered as a pending card so the user can also see what Puding is about to do.
 
 Renderers are added to `INTEGRATION_RENDERERS` in `ChatWindow.tsx`; badge colours use CSS custom properties in `globals.css`.
@@ -267,13 +316,14 @@ Renderers are added to `INTEGRATION_RENDERERS` in `ChatWindow.tsx`; badge colour
 
 Continuing the global numbering after stage 28:
 
-| Stage                                          | Work                                                                                                                                                                                                                                                                                                                         | Files                                                                                                                                                          |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **29. WebSocket Access Guard**                 | `PUDING_ACCESS_TOKEN` config, constant-time check on WS upgrade with `4401` close, `AccessTokenPrompt` + `localStorage`, token appended by the WS URL resolver, preview-safe defaults.                                                                                                                                       | `config.service.ts`, `auth/access-guard.service.ts`, `proxy.gateway.ts`, `proxy.gateway.spec.ts`, `useLiveSession.ts`, `AccessTokenPrompt.tsx`, `.env.example` |
-| **30. Devin API Client**                       | `DEVIN_*` config getters (optional), `CodingAgentService` abstraction, `DevinService` over REST v3 (start/list/get/messages/send/stop), prompt templates for plan/build, repo aliases, ACU + concurrency caps, error translation, unit tests with mocked `fetch`. Confirm `GET /sessions` query params against the live API. | `devin/coding-agent.interface.ts`, `devin/devin.service.ts`, `devin/devin.service.spec.ts`, `devin/devin.module.ts`, `app.module.ts`                           |
-| **31. Devin Voice Tools & Session Resolution** | `SessionResolver` (id → anaphora → recency → ordinal → fuzzy, with ambiguity), the five `GeminiTool`s with code-enforced confirmation, gated registration in `"GEMINI_TOOLS"`, server-side system-instruction addendum.                                                                                                      | `devin/session-resolver.service.ts` (+spec), `devin/tools/*.ts` (+spec), `gemini.module.ts`, `gemini.session.ts`                                               |
-| **32. Devin Session Cards**                    | `"devin"` integration type; `DevinSessionCard`, `DevinSessionListCard`, confirm card; status badge styles.                                                                                                                                                                                                                   | `types/server-message.ts`, `ChatWindow.tsx`, `globals.css`                                                                                                     |
-| **33. Proactive Devin Updates**                | `DevinWatcher` polling with transition detection, subscriber interface, `GeminiSession.injectSystemNote` with idle-aware queue, update cards.                                                                                                                                                                                | `devin/devin-watcher.service.ts` (+spec), `gemini.session.ts`, `gemini.service.ts`                                                                             |
+| Stage                                          | Work                                                                                                                                                                                                                                                                                                                         | Files                                                                                                                                                                                                                       |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **29. WebSocket Access Guard**                 | `PUDING_ACCESS_TOKEN` config, constant-time check on WS upgrade with `4401` close, `AccessTokenPrompt` + `localStorage`, token appended by the WS URL resolver, preview-safe defaults.                                                                                                                                       | `config.service.ts`, `auth/access-guard.service.ts`, `proxy.gateway.ts`, `proxy.gateway.spec.ts`, `useLiveSession.ts`, `AccessTokenPrompt.tsx`, `.env.example`                                                              |
+| **30. Devin API Client**                       | `DEVIN_*` config getters (optional), `CodingAgentService` abstraction, `DevinService` over REST v3 (start/list/get/messages/send/stop), prompt templates for plan/build, repo aliases, ACU + concurrency caps, error translation, unit tests with mocked `fetch`. Confirm `GET /sessions` query params against the live API. | `devin/coding-agent.interface.ts`, `devin/devin.service.ts`, `devin/devin.service.spec.ts`, `devin/devin.module.ts`, `app.module.ts`                                                                                        |
+| **31. Devin Voice Tools & Session Resolution** | `SessionResolver` (id → anaphora → recency → ordinal → fuzzy, with ambiguity), the five `GeminiTool`s with code-enforced confirmation, gated registration in `"GEMINI_TOOLS"`, server-side system-instruction addendum.                                                                                                      | `devin/session-resolver.service.ts` (+spec), `devin/tools/*.ts` (+spec), `gemini.module.ts`, `gemini.session.ts`                                                                                                            |
+| **32. Spoken Reader & Dilemmas**               | `SpokenReader` (sectioning, speech normalisation, per-conversation cursor, outline-first), `DilemmaParser` (question/options/recommendation, verbatim fallback), `read_devin_message` and `answer_devin_question` tools, verbatim-reading instruction.                                                                       | `devin/spoken-reader.service.ts` (+spec), `devin/dilemma-parser.service.ts` (+spec), `devin/tools/read-devin-message.tool.ts`, `devin/tools/answer-devin-question.tool.ts` (+spec), `gemini.module.ts`, `gemini.session.ts` |
+| **33. Devin Session Cards**                    | `"devin"` integration type; `DevinSessionCard`, `DevinSessionListCard`, reading, question and confirm cards; status badge styles.                                                                                                                                                                                            | `types/server-message.ts`, `ChatWindow.tsx`, `globals.css`                                                                                                                                                                  |
+| **34. Proactive Devin Updates**                | `DevinWatcher` polling with transition detection, subscriber interface, `GeminiSession.injectSystemNote` with idle-aware queue, question-aware notes, update cards.                                                                                                                                                          | `devin/devin-watcher.service.ts` (+spec), `gemini.session.ts`, `gemini.service.ts`                                                                                                                                          |
 
 Each stage is a separate `feature/stage-<n>-<slug>` branch/PR per the plan-driven workflow, with `pnpm run build`, `pnpm lint` and `pnpm test` passing before commit.
 
@@ -282,11 +332,12 @@ Each stage is a separate `feature/stage-<n>-<slug>` branch/PR per the plan-drive
 ## 10. Verification Plan
 
 1. **Build / lint / unit tests** at the workspace root.
-2. **Unit coverage:** `devin.service.spec.ts` (request shape incl. `tags`/`max_acu_limit`/`repos`, status mapping, error translation, concurrency cap), `session-resolver.service.spec.ts` (every resolution path + ambiguity), tool specs (no API call when `confirmed=false`), watcher spec (seed without announcing, single announcement per transition).
+2. **Unit coverage:** `devin.service.spec.ts` (request shape incl. `tags`/`max_acu_limit`/`repos`, status mapping, error translation, concurrency cap), `session-resolver.service.spec.ts` (every resolution path + ambiguity), tool specs (no API call when `confirmed=false`), `spoken-reader.service.spec.ts` (sectioning of real Devin plans, code/table/link normalisation, cursor navigation), `dilemma-parser.service.spec.ts` (numbered, lettered, "Option X", "X or Y?", recommendation, unparseable → verbatim), `answer_devin_question` spec ("option two", "B", "recommended" → full option text), watcher spec (seed without announcing, single announcement per transition).
 3. **Access guard:** connecting without/with a wrong token closes with `4401`; the PWA prompts once and reconnects.
 4. **Live voice tests** (real `DEVIN_API_KEY`, `DEVIN_ORG_ID`):
    - "Ask Devin to plan adding a README badge on puding" → read-back → "yes" → session visible in app.devin.ai tagged `puding`, card shows _working_.
-   - Wait for the plan → Puding announces it unprompted; "read it" → one-to-two sentence summary, card shows full plan.
+   - Wait for the plan → Puding announces it unprompted; "read me the plan" → outline, then section 1; "next" / "repeat" / "skip to stage 3" navigate; the spoken transcript matches the section text (no paraphrase), and the reading card highlights the current section.
+   - Ask Devin something that makes it pose a choice → Puding announces "Devin has a question", reads all options + recommendation; "option two, and …" → Devin receives the full option text plus the addition.
    - "Go ahead" → message lands in the Devin session; later the PR link appears on the card.
    - "What are my Devin sessions doing?" → numbered list; "what about the second one?" resolves correctly.
    - "Stop it" → read-back → "yes" → session terminated.
