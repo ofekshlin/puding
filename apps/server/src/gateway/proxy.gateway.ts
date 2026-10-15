@@ -14,6 +14,10 @@ import { Logger, Inject } from "@nestjs/common";
 import { ClientMessage } from "../types";
 import { randomUUID } from "crypto";
 import { SessionTracker } from "../session/session-tracker.interface";
+import {
+  AccessGuard,
+  UNAUTHORIZED_CLOSE_CODE,
+} from "../auth/access-guard.service";
 
 @WebSocketGateway({ path: "/" })
 export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -25,6 +29,7 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly liveSessionService: LiveSessionService,
     @Inject(ConfigService) private readonly configService: ConfigService,
     @Inject(SessionTracker) private readonly sessionTracker: SessionTracker,
+    @Inject(AccessGuard) private readonly accessGuard: AccessGuard,
   ) {}
 
   /**
@@ -33,6 +38,15 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   public handleConnection(client: WebSocket, req: IncomingMessage): void {
     const clientIp = req.socket.remoteAddress;
     const sessionId = randomUUID().substring(0, 8);
+
+    if (!this.accessGuard.isAuthorized(req)) {
+      this.logger.warn(
+        `Rejecting unauthenticated client [${sessionId}] from IP: ${clientIp}`,
+      );
+      client.close(UNAUTHORIZED_CLOSE_CODE, "Unauthorized");
+      return;
+    }
+
     this.logger.log(`New client connected [${sessionId}] from IP: ${clientIp}`);
 
     const apiKey = this.configService.getGeminiApiKey();

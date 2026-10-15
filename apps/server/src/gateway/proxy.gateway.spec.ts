@@ -6,6 +6,7 @@ import {
 } from "../session/live-session.service";
 import { ConfigService } from "../config/config.service";
 import { SessionTracker } from "../session/session-tracker.interface";
+import { AccessGuard } from "../auth/access-guard.service";
 import WebSocket from "ws";
 import { EventEmitter } from "events";
 import { IncomingMessage } from "http";
@@ -16,6 +17,7 @@ describe("ProxyGateway (Unit)", () => {
   let mockLiveSession: jest.Mocked<LiveSession>;
   let mockConfigService: jest.Mocked<ConfigService>;
   let mockSessionTracker: jest.Mocked<SessionTracker>;
+  let mockAccessGuard: jest.Mocked<AccessGuard>;
 
   beforeEach(async () => {
     mockLiveSession = {
@@ -43,6 +45,11 @@ describe("ProxyGateway (Unit)", () => {
       getSession: jest.fn(),
     } as any;
 
+    mockAccessGuard = {
+      isEnabled: jest.fn().mockReturnValue(true),
+      isAuthorized: jest.fn().mockReturnValue(true),
+    } as any;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProxyGateway,
@@ -57,6 +64,10 @@ describe("ProxyGateway (Unit)", () => {
         {
           provide: SessionTracker,
           useValue: mockSessionTracker,
+        },
+        {
+          provide: AccessGuard,
+          useValue: mockAccessGuard,
         },
       ],
     }).compile();
@@ -93,6 +104,26 @@ describe("ProxyGateway (Unit)", () => {
 
     expect(mockSocket.close).toHaveBeenCalledWith(1011, expect.any(String));
     expect(mockLiveSessionService.createSession).not.toHaveBeenCalled();
+  });
+
+  it("should close unauthenticated clients with 4401 before creating a session", () => {
+    mockAccessGuard.isAuthorized.mockReturnValueOnce(false);
+    const mockSocket = new EventEmitter() as any;
+    mockSocket.close = jest.fn();
+    const mockReq = {
+      url: "/?token=wrong",
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+
+    gateway.handleConnection(mockSocket, mockReq);
+
+    expect(mockAccessGuard.isAuthorized).toHaveBeenCalledWith(mockReq);
+    expect(mockSocket.close).toHaveBeenCalledWith(4401, "Unauthorized");
+    expect(mockSessionTracker.registerSession).not.toHaveBeenCalled();
+    expect(mockLiveSessionService.createSession).not.toHaveBeenCalled();
+
+    mockSocket.emit("message", Buffer.alloc(10), true);
+    expect(mockLiveSession.sendAudio).not.toHaveBeenCalled();
   });
 
   it("should relay setup message", () => {
