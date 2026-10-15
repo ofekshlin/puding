@@ -17,6 +17,7 @@ import { AddSongToPlaylistTool } from "../spotify/tools/add-song-to-playlist.too
 import { ConfigService } from "../config/config.service";
 import { DevinModule } from "../devin/devin.module";
 import { CodingAgentService } from "../devin/coding-agent.interface";
+import { devinEnabled } from "../devin/devin-watcher.service";
 import { StartDevinSessionTool } from "../devin/tools/start-devin-session.tool";
 import { ListDevinSessionsTool } from "../devin/tools/list-devin-sessions.tool";
 import { GetDevinSessionTool } from "../devin/tools/get-devin-session.tool";
@@ -64,8 +65,7 @@ import { AnswerDevinQuestionTool } from "../devin/tools/answer-devin-question.to
         write,
         search,
         ...(spotifyAuth.isConfigured() ? [play, queue, addToPlaylist] : []),
-        ...(codingAgent.isConfigured() &&
-        (!config.isPreview() || config.isDevinEnabledInPreview())
+        ...(devinEnabled(config, codingAgent)
           ? [
               startDevin,
               listDevin,

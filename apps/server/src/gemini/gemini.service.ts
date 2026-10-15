@@ -7,6 +7,7 @@ import {
 } from "../session/live-session.service";
 import { SessionTracker } from "../session/session-tracker.interface";
 import { GeminiTool } from "./gemini-tool.interface";
+import { DevinWatcher } from "../devin/devin-watcher.service";
 
 @Injectable()
 export class GeminiService extends LiveSessionService {
@@ -15,6 +16,7 @@ export class GeminiService extends LiveSessionService {
   constructor(
     @Inject(SessionTracker) private readonly sessionTracker: SessionTracker,
     @Inject("GEMINI_TOOLS") private readonly tools: GeminiTool[],
+    @Inject(DevinWatcher) private readonly devinWatcher: DevinWatcher,
   ) {
     super();
   }
@@ -38,6 +40,7 @@ export class GeminiService extends LiveSessionService {
       sessionId,
       this.sessionTracker,
       this.tools,
+      this.devinWatcher.isEnabled() ? this.devinWatcher : undefined,
     );
   }
 }

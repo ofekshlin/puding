@@ -12,6 +12,7 @@ import { ReadDevinMessageTool } from "./tools/read-devin-message.tool";
 import { AnswerDevinQuestionTool } from "./tools/answer-devin-question.tool";
 import { SpokenReader } from "./spoken-reader.service";
 import { DilemmaParser } from "./dilemma-parser.service";
+import { DevinWatcher } from "./devin-watcher.service";
 
 const DEVIN_TOOLS = [
   StartDevinSessionTool,
@@ -30,8 +31,9 @@ const DEVIN_TOOLS = [
     SessionResolver,
     SpokenReader,
     DilemmaParser,
+    DevinWatcher,
     ...DEVIN_TOOLS,
   ],
-  exports: [CodingAgentService, SessionResolver, ...DEVIN_TOOLS],
+  exports: [CodingAgentService, SessionResolver, DevinWatcher, ...DEVIN_TOOLS],
 })
 export class DevinModule {}
