@@ -36,6 +36,7 @@ interface DevinSession {
   tags?: string[];
   pull_requests?: DevinPullRequest[];
   updated_at?: number | string;
+  acus_consumed?: number;
   url: string;
 }
 
@@ -361,6 +362,9 @@ export class DevinService extends CodingAgentService {
           state: pr.pr_state ?? pr.state ?? undefined,
         }))
         .filter((pr) => pr.url),
+      ...(typeof session.acus_consumed === "number" && {
+        acusConsumed: session.acus_consumed,
+      }),
       updatedAt: DevinService.toMillis(session.updated_at),
     };
   }
