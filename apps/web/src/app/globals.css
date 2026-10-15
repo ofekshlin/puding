@@ -966,3 +966,159 @@ body {
 .access-token-submit {
   padding: 0.5rem 1rem;
 }
+
+/* Devin cards */
+:root {
+  --devin-working: #6366f1;
+  --devin-waiting: #f59e0b;
+  --devin-finished: #10b981;
+  --devin-idle: #64748b;
+  --devin-stopped: #ef4444;
+}
+
+.devin-card {
+  border-color: rgba(99, 102, 241, 0.25);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(0, 0, 0, 0.4) 100%);
+}
+
+.devin-card .card-header .badge {
+  margin-left: auto;
+}
+
+.devin-card .devin-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.devin-card .devin-state-working {
+  background: color-mix(in srgb, var(--devin-working) 20%, transparent);
+  color: var(--devin-working);
+}
+
+.devin-card .devin-state-waiting_for_user,
+.devin-card .devin-state-waiting_for_approval,
+.devin-card .devin-recommended {
+  background: color-mix(in srgb, var(--devin-waiting) 20%, transparent);
+  color: var(--devin-waiting);
+}
+
+.devin-card .devin-state-finished {
+  background: color-mix(in srgb, var(--devin-finished) 20%, transparent);
+  color: var(--devin-finished);
+}
+
+.devin-card .devin-state-sleeping {
+  background: color-mix(in srgb, var(--devin-idle) 25%, transparent);
+  color: var(--text-secondary);
+}
+
+.devin-card .devin-state-stopped {
+  background: color-mix(in srgb, var(--devin-stopped) 20%, transparent);
+  color: var(--devin-stopped);
+}
+
+.devin-card .devin-title {
+  font-size: 0.85rem;
+  color: #fff;
+}
+
+.devin-card .devin-muted {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.devin-card .devin-message {
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  color: var(--text-secondary);
+}
+
+.devin-card .devin-message.collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.devin-card .devin-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.7rem;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.devin-card a {
+  color: #a5b4fc;
+  font-size: 0.78rem;
+}
+
+.devin-card .devin-prs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.devin-card .devin-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.devin-card .devin-list-row,
+.devin-card .devin-option {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.devin-card .devin-list-row .badge {
+  margin-left: auto;
+}
+
+.devin-card .devin-index {
+  min-width: 1.2rem;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.devin-card .devin-section {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  padding: 0.3rem 0.5rem;
+  border-left: 2px solid transparent;
+  border-radius: 4px;
+}
+
+.devin-card .devin-section p {
+  margin: 0.1rem 0 0;
+}
+
+.devin-card .devin-section-heading {
+  font-weight: 600;
+}
+
+.devin-card .devin-section.current {
+  color: var(--text-primary);
+  border-left-color: var(--devin-working);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.devin-card .devin-open-link {
+  font-size: 0.7rem;
+}
+
+.devin-confirm {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--devin-waiting) 50%, transparent);
+}
