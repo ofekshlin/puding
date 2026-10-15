@@ -111,6 +111,7 @@ In the **Environment Variables** section on Render, add:
 | `DEVIN_REPO_ALIASES`        | Spoken repo names, e.g. `puding=ofekshlin/puding,site=ofekshlin/site`     | Optional                            |
 | `DEVIN_MAX_ACU_PER_SESSION` | ACU cap on every Puding-created Devin session (default `10`)              | Optional                            |
 | `DEVIN_MAX_ACTIVE_SESSIONS` | Max Puding-created Devin sessions working at once (default `3`)           | Optional                            |
+| `DEVIN_ENABLE_IN_PREVIEW`   | Set to `true` to register Devin tools in PR previews (off by default)     | Optional                            |
 | `NODE_ENV`                  | `production`                                                              | Recommended                         |
 
 #### 4. Deploy and Note the WebSocket Endpoint

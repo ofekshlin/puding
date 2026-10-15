@@ -14,9 +14,23 @@ import { SpotifyAuthService } from "../spotify/spotify-auth.service";
 import { PlaySongTool } from "../spotify/tools/play-song.tool";
 import { QueueSongTool } from "../spotify/tools/queue-song.tool";
 import { AddSongToPlaylistTool } from "../spotify/tools/add-song-to-playlist.tool";
+import { ConfigService } from "../config/config.service";
+import { DevinModule } from "../devin/devin.module";
+import { CodingAgentService } from "../devin/coding-agent.interface";
+import { StartDevinSessionTool } from "../devin/tools/start-devin-session.tool";
+import { ListDevinSessionsTool } from "../devin/tools/list-devin-sessions.tool";
+import { GetDevinSessionTool } from "../devin/tools/get-devin-session.tool";
+import { MessageDevinSessionTool } from "../devin/tools/message-devin-session.tool";
+import { StopDevinSessionTool } from "../devin/tools/stop-devin-session.tool";
 
 @Module({
-  imports: [SessionModule, NotionModule, SearchModule, SpotifyModule],
+  imports: [
+    SessionModule,
+    NotionModule,
+    SearchModule,
+    SpotifyModule,
+    DevinModule,
+  ],
   providers: [
     {
       provide: LiveSessionService,
@@ -33,12 +47,23 @@ import { AddSongToPlaylistTool } from "../spotify/tools/add-song-to-playlist.too
         play: PlaySongTool,
         queue: QueueSongTool,
         addToPlaylist: AddSongToPlaylistTool,
+        config: ConfigService,
+        codingAgent: CodingAgentService,
+        startDevin: StartDevinSessionTool,
+        listDevin: ListDevinSessionsTool,
+        getDevin: GetDevinSessionTool,
+        messageDevin: MessageDevinSessionTool,
+        stopDevin: StopDevinSessionTool,
       ): GeminiTool[] => [
         read,
         create,
         write,
         search,
         ...(spotifyAuth.isConfigured() ? [play, queue, addToPlaylist] : []),
+        ...(codingAgent.isConfigured() &&
+        (!config.isPreview() || config.isDevinEnabledInPreview())
+          ? [startDevin, listDevin, getDevin, messageDevin, stopDevin]
+          : []),
       ],
       inject: [
         ReadNotionPageTool,
@@ -49,6 +74,13 @@ import { AddSongToPlaylistTool } from "../spotify/tools/add-song-to-playlist.too
         PlaySongTool,
         QueueSongTool,
         AddSongToPlaylistTool,
+        ConfigService,
+        CodingAgentService,
+        StartDevinSessionTool,
+        ListDevinSessionsTool,
+        GetDevinSessionTool,
+        MessageDevinSessionTool,
+        StopDevinSessionTool,
       ],
     },
   ],
