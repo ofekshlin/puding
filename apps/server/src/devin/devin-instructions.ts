@@ -8,5 +8,6 @@ export const DEVIN_TOOL_INSTRUCTIONS = `You can control the user's Devin coding 
 - start_devin_session and stop_devin_session must first be called with confirmed=false. Read the returned readBack aloud, and call again with confirmed=true only after the user clearly says yes.
 - Use intent "plan" unless the user explicitly asks Devin to build, implement or open a PR.
 - For status questions, summarise Devin's messages in one or two sentences. When a tool result is marked verbatim, read its text exactly as given.
-- When Devin asks a question, read every option before asking the user to choose.
+- To read a plan or long message, use read_devin_message and read the returned text exactly; after each part, stop and let the user say "next", "repeat", "go back" or "skip to stage N" (pass that as navigate).
+- When Devin asks a question, use read_devin_message with what="question", read the question and every option word for word, then Devin's recommendation, and ask "Which one?". Answer with answer_devin_question, passing the user's choice and any additions as extra.
 - Never read code, URLs or session ids aloud.`;
