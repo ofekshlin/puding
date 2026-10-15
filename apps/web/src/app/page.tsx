@@ -7,6 +7,7 @@ import { StatusIndicator } from "../components/StatusIndicator";
 import { ControlPanel } from "../components/ControlPanel";
 import { ChatWindow } from "../components/ChatWindow";
 import { ChatInput } from "../components/ChatInput";
+import { AccessTokenPrompt } from "../components/AccessTokenPrompt";
 
 export default function Home() {
   const {
@@ -16,6 +17,8 @@ export default function Home() {
     audioLevel,
     messages,
     isThinking,
+    accessTokenRequired,
+    submitAccessToken,
     connect,
     disconnect,
     toggleRecording,
@@ -47,6 +50,10 @@ export default function Home() {
           isRecording={isRecording}
           audioLevel={audioLevel}
         />
+
+        {accessTokenRequired && (
+          <AccessTokenPrompt onSubmit={submitAccessToken} />
+        )}
 
         {/* Connection control buttons */}
         <ControlPanel
