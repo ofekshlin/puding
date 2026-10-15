@@ -16,6 +16,7 @@ export class ConfigService {
   private readonly commitSha: string;
   private readonly serviceName: string;
   private readonly preview: boolean;
+  private readonly accessToken?: string;
 
   // Define required environment variables here for easy extension
   private readonly requiredEnvVars = ["GEMINI_API_KEY", "NOTION_TOKEN"];
@@ -40,6 +41,7 @@ export class ConfigService {
     this.commitSha = process.env.RENDER_GIT_COMMIT ?? "unknown";
     this.serviceName = process.env.RENDER_SERVICE_NAME ?? "local";
     this.preview = process.env.IS_PULL_REQUEST === "true";
+    this.accessToken = process.env.PUDING_ACCESS_TOKEN || undefined;
   }
 
   private validateConfig(envPath: string): void {
@@ -129,5 +131,12 @@ export class ConfigService {
    */
   public isPreview(): boolean {
     return this.preview;
+  }
+
+  /**
+   * Retrieves the shared secret WebSocket clients must present, if configured.
+   */
+  public getAccessToken(): string | undefined {
+    return this.accessToken;
   }
 }
