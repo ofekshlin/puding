@@ -98,13 +98,22 @@ The backend must be deployed first so we have the production WebSocket URL ready
 
 In the **Environment Variables** section on Render, add:
 
-| Key              | Value / Description                                 | Required    |
-| :--------------- | :-------------------------------------------------- | :---------- |
-| `PORT`           | `10000` _(Render sets this automatically)_          | Auto        |
-| `GEMINI_API_KEY` | Your Google AI Studio API key                       | **Yes**     |
-| `NOTION_TOKEN`   | Your Notion internal integration secret (`ntn_...`) | **Yes**     |
-| `TAVILY_API_KEY` | Your Tavily Search API key (`tvly-...`)             | Optional    |
-| `NODE_ENV`       | `production`                                        | Recommended |
+| Key                         | Value / Description                                                         | Required                            |
+| :-------------------------- | :-------------------------------------------------------------------------- | :---------------------------------- |
+| `PORT`                      | `10000` _(Render sets this automatically)_                                  | Auto                                |
+| `GEMINI_API_KEY`            | Your Google AI Studio API key                                               | **Yes**                             |
+| `NOTION_TOKEN`              | Your Notion internal integration secret (`ntn_...`)                         | **Yes**                             |
+| `TAVILY_API_KEY`            | Your Tavily Search API key (`tvly-...`)                                     | Optional                            |
+| `PUDING_ACCESS_TOKEN`       | Long random secret clients must enter once (e.g. `openssl rand -hex 32`)    | **Yes** (open to anyone without it) |
+| `DEVIN_API_KEY`             | Devin personal access token (`cog_...`) for voice control of Devin          | Optional                            |
+| `DEVIN_ORG_ID`              | Devin organization ID (`org-...`); required together with `DEVIN_API_KEY`   | Optional                            |
+| `DEVIN_DEFAULT_REPO`        | Repo Devin works on when none is named (e.g. `ofekshlin/puding`)            | Optional                            |
+| `DEVIN_REPO_ALIASES`        | Spoken repo names, e.g. `puding=ofekshlin/puding,site=ofekshlin/site`       | Optional                            |
+| `DEVIN_MAX_ACU_PER_SESSION` | ACU cap on every Puding-created Devin session (default `10`)                | Optional                            |
+| `DEVIN_MAX_ACTIVE_SESSIONS` | Max Puding-created Devin sessions working at once (default `3`)             | Optional                            |
+| `DEVIN_ENABLE_IN_PREVIEW`   | Set to `true` to register Devin tools in PR previews (off by default)       | Optional                            |
+| `DEVIN_POLL_INTERVAL_MS`    | How often Devin sessions are checked while Puding is open (default `20000`) | Optional                            |
+| `NODE_ENV`                  | `production`                                                                | Recommended                         |
 
 #### 4. Deploy and Note the WebSocket Endpoint
 
@@ -140,8 +149,8 @@ In the **Environment Variables** section on Render, add:
 
 In the Vercel **Environment Variables** panel, add:
 
-| Variable Name               | Value                              | Purpose                                        |
-| :-------------------------- | :--------------------------------- | :--------------------------------------------- |
+| Variable Name               | Value                               | Purpose                                        |
+| :-------------------------- | :---------------------------------- | :--------------------------------------------- |
 | `NEXT_PUBLIC_SERVER_WS_URL` | `wss://puding-backend.onrender.com` | Directs client to the secure backend WebSocket |
 
 #### 4. Deploy
@@ -199,20 +208,22 @@ environment group it references:
 1. Render Dashboard &rarr; **Env Groups** &rarr; **New Environment Group**, named
    `puding-preview-secrets`.
 2. Add **non-production** values for `GEMINI_API_KEY`, `NOTION_TOKEN`,
-   `TAVILY_API_KEY` and the `SPOTIFY_*` credentials. Previews inherit these, so
-   production keys must not be placed here.
+   `TAVILY_API_KEY` and the `SPOTIFY_*` credentials, plus a
+   `PUDING_ACCESS_TOKEN`. Previews inherit these, so production keys must not
+   be placed here. Leave `DEVIN_API_KEY` out of this group: previews should not
+   be able to start paid Devin sessions.
 3. Link the group to the `puding-backend` service.
 
 **GitHub** — add these repository secrets (Settings &rarr; Secrets and variables
 &rarr; Actions):
 
-| Secret              | Where to get it                                       |
-| :------------------ | :---------------------------------------------------- |
-| `RENDER_API_KEY`    | Render &rarr; Account Settings &rarr; API Keys        |
+| Secret              | Where to get it                                        |
+| :------------------ | :----------------------------------------------------- |
+| `RENDER_API_KEY`    | Render &rarr; Account Settings &rarr; API Keys         |
 | `RENDER_SERVICE_ID` | The `srv-...` id in the `puding-backend` dashboard URL |
-| `VERCEL_TOKEN`      | Vercel &rarr; Account Settings &rarr; Tokens          |
-| `VERCEL_PROJECT_ID` | Vercel project &rarr; Settings &rarr; General         |
-| `VERCEL_ORG_ID`     | Vercel team &rarr; Settings &rarr; General            |
+| `VERCEL_TOKEN`      | Vercel &rarr; Account Settings &rarr; Tokens           |
+| `VERCEL_PROJECT_ID` | Vercel project &rarr; Settings &rarr; General          |
+| `VERCEL_ORG_ID`     | Vercel team &rarr; Settings &rarr; General             |
 
 The workflow only ever _writes_ the resolved backend URL to Vercel; no secret
 value is echoed into logs or into the pull request comment.
@@ -320,6 +331,7 @@ After deployment, verify the end-to-end functionality:
 
 ### 3. Missing Environment Variables on Server
 
+- If the app shows "This Puding server needs an access token" (close code `4401`), enter the server's `PUDING_ACCESS_TOKEN`. The browser stores it in `localStorage`; a wrong or rotated token brings the prompt back.
 - If connections are rejected immediately with code `1011`, check the Render logs. Ensure both `GEMINI_API_KEY` and `NOTION_TOKEN` are set in the Render dashboard.
 
 ### 4. Preview Frontend Talks to the Production Backend

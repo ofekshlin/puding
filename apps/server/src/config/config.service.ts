@@ -16,6 +16,15 @@ export class ConfigService {
   private readonly commitSha: string;
   private readonly serviceName: string;
   private readonly preview: boolean;
+  private readonly accessToken?: string;
+  private readonly devinApiKey?: string;
+  private readonly devinOrgId?: string;
+  private readonly devinDefaultRepo?: string;
+  private readonly devinRepoAliases: Record<string, string>;
+  private readonly devinMaxAcuPerSession: number;
+  private readonly devinMaxActiveSessions: number;
+  private readonly devinEnabledInPreview: boolean;
+  private readonly devinPollIntervalMs: number;
 
   // Define required environment variables here for easy extension
   private readonly requiredEnvVars = ["GEMINI_API_KEY", "NOTION_TOKEN"];
@@ -40,6 +49,43 @@ export class ConfigService {
     this.commitSha = process.env.RENDER_GIT_COMMIT ?? "unknown";
     this.serviceName = process.env.RENDER_SERVICE_NAME ?? "local";
     this.preview = process.env.IS_PULL_REQUEST === "true";
+    this.accessToken = process.env.PUDING_ACCESS_TOKEN || undefined;
+    this.devinApiKey = process.env.DEVIN_API_KEY || undefined;
+    this.devinOrgId = process.env.DEVIN_ORG_ID || undefined;
+    this.devinDefaultRepo = process.env.DEVIN_DEFAULT_REPO || undefined;
+    this.devinRepoAliases = ConfigService.parseAliases(
+      process.env.DEVIN_REPO_ALIASES,
+    );
+    this.devinMaxAcuPerSession = ConfigService.parsePositiveInt(
+      process.env.DEVIN_MAX_ACU_PER_SESSION,
+      10,
+    );
+    this.devinMaxActiveSessions = ConfigService.parsePositiveInt(
+      process.env.DEVIN_MAX_ACTIVE_SESSIONS,
+      3,
+    );
+    this.devinEnabledInPreview = process.env.DEVIN_ENABLE_IN_PREVIEW === "true";
+    this.devinPollIntervalMs = Math.max(
+      ConfigService.parsePositiveInt(process.env.DEVIN_POLL_INTERVAL_MS, 20000),
+      5000,
+    );
+  }
+
+  private static parsePositiveInt(
+    raw: string | undefined,
+    fallback: number,
+  ): number {
+    const value = raw ? parseInt(raw, 10) : NaN;
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+  }
+
+  private static parseAliases(raw: string | undefined): Record<string, string> {
+    const aliases: Record<string, string> = {};
+    for (const entry of (raw ?? "").split(",")) {
+      const [alias, repo] = entry.split("=").map((part) => part?.trim());
+      if (alias && repo) aliases[alias.toLowerCase()] = repo;
+    }
+    return aliases;
   }
 
   private validateConfig(envPath: string): void {
@@ -129,5 +175,68 @@ export class ConfigService {
    */
   public isPreview(): boolean {
     return this.preview;
+  }
+
+  /**
+   * Retrieves the shared secret WebSocket clients must present, if configured.
+   */
+  public getAccessToken(): string | undefined {
+    return this.accessToken;
+  }
+
+  /**
+   * Retrieves the Devin API token (personal access token or service-user key).
+   */
+  public getDevinApiKey(): string | undefined {
+    return this.devinApiKey;
+  }
+
+  /**
+   * Retrieves the Devin organization ID (`org-…`).
+   */
+  public getDevinOrgId(): string | undefined {
+    return this.devinOrgId;
+  }
+
+  /**
+   * Retrieves the repository (`owner/name`) Devin works on when none is named.
+   */
+  public getDevinDefaultRepo(): string | undefined {
+    return this.devinDefaultRepo;
+  }
+
+  /**
+   * Retrieves spoken repository aliases, keyed by lower-case alias.
+   */
+  public getDevinRepoAliases(): Record<string, string> {
+    return this.devinRepoAliases;
+  }
+
+  /**
+   * Retrieves the ACU cap applied to every Puding-created Devin session.
+   */
+  public getDevinMaxAcuPerSession(): number {
+    return this.devinMaxAcuPerSession;
+  }
+
+  /**
+   * Retrieves how many Puding-created Devin sessions may work at once.
+   */
+  public getDevinMaxActiveSessions(): number {
+    return this.devinMaxActiveSessions;
+  }
+
+  /**
+   * Whether Devin tools may be registered in a pull-request preview.
+   */
+  public isDevinEnabledInPreview(): boolean {
+    return this.devinEnabledInPreview;
+  }
+
+  /**
+   * How often Devin sessions are polled while a client is connected (min 5s).
+   */
+  public getDevinPollIntervalMs(): number {
+    return this.devinPollIntervalMs;
   }
 }

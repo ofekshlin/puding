@@ -12,10 +12,14 @@ export type ServerMessage =
       userTranscription?: string;
       turnComplete?: boolean;
       integration?: {
-        type: "notion" | "spotify" | "search";
+        type: "notion" | "spotify" | "search" | "devin";
         data: any;
       };
     }
   | {
       type: "interrupted";
+    }
+  | {
+      /** Sent before closing with 4401: some proxies (Render) drop close codes. */
+      type: "unauthorized";
     };
