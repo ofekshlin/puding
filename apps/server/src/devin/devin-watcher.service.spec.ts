@@ -72,9 +72,10 @@ describe("DevinWatcher", () => {
     expect(update.note).toContain(
       '[Devin update] Session "Add dark mode toggle" is now finished.',
     );
-    expect(update.note).toContain(
-      "Devin said: I opened the PR. All checks pass.",
-    );
+    expect(update.note).not.toContain("I opened the PR");
+    expect(update.card.data).toMatchObject({
+      latestMessage: "I opened the PR. All checks pass.",
+    });
     expect(update.card.data).toMatchObject({
       kind: "session",
       state: "finished",
@@ -129,6 +130,23 @@ describe("DevinWatcher", () => {
     agent.isConfigured.mockReturnValue(false);
     watcher.subscribe(subscriber);
     expect(agent.listSessions).not.toHaveBeenCalled();
+  });
+
+  it("discards a poll that finishes after the last client left", async () => {
+    let resolveList!: (s: AgentSession[]) => void;
+    agent.listSessions.mockImplementation(
+      () => new Promise((resolve) => (resolveList = resolve)),
+    );
+    const unsubscribe = watcher.subscribe(subscriber);
+    unsubscribe();
+    resolveList([session("working")]);
+    await flush();
+
+    agent.listSessions.mockResolvedValue([session("finished")]);
+    const late = { sessionId: "late", onDevinUpdate: jest.fn() };
+    watcher.subscribe(late);
+    await flush();
+    expect(late.onDevinUpdate).not.toHaveBeenCalled();
   });
 
   it("swallows polling errors", async () => {
