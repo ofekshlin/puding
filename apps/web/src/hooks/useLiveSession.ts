@@ -103,6 +103,8 @@ export function useLiveSession(): UseLiveSessionResult {
       addLog("Backend is cold, waiting for it to wake up...");
     }, WAKING_NOTICE_MS);
 
+    let rejected = false;
+
     ws.onopen = () => {
       clearWakingTimer();
       setStatus("connected");
@@ -127,7 +129,9 @@ export function useLiveSession(): UseLiveSessionResult {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === "setup_complete") {
+        if (msg.type === "unauthorized") {
+          rejected = true;
+        } else if (msg.type === "setup_complete") {
           addLog("Gemini setup complete. Start talking!");
         } else if (msg.type === "content") {
           if (msg.userTranscription) {
@@ -250,7 +254,7 @@ export function useLiveSession(): UseLiveSessionResult {
     ws.onclose = (event) => {
       clearWakingTimer();
       setStatus("disconnected");
-      if (event.code === UNAUTHORIZED_CLOSE_CODE) {
+      if (event.code === UNAUTHORIZED_CLOSE_CODE || rejected) {
         setAccessTokenRequired(true);
         addLog("Server rejected the access token.");
       } else {
