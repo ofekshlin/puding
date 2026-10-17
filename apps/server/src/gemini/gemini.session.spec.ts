@@ -108,6 +108,30 @@ describe("GeminiSession system notes", () => {
     );
   });
 
+  it("flushes queued notes after an interruption", () => {
+    fromGemini({ serverContent: { modelTurn: { parts: [{ text: "Hi" }] } } });
+    session.onDevinUpdate(update);
+    fromGemini({ serverContent: { interrupted: true } });
+    expect(notesSent()).toHaveLength(1);
+  });
+
+  it("treats loud microphone audio as speech, but not silence", () => {
+    session.sendAudio(Buffer.alloc(3200));
+    session.onDevinUpdate(update);
+    expect(notesSent()).toHaveLength(1);
+
+    const loud = Buffer.alloc(3200);
+    for (let i = 0; i < 1600; i++)
+      loud.writeInt16LE(i % 2 ? 8000 : -8000, i * 2);
+    fromGemini({ serverContent: { modelTurn: { parts: [{ text: "Ok" }] } } });
+    fromGemini({ serverContent: { turnComplete: true } });
+    session.sendAudio(loud);
+    session.onDevinUpdate({ ...update, note: "[Devin update] Second." });
+    expect(notesSent()).toHaveLength(1);
+    jest.advanceTimersByTime(USER_QUIET_MS);
+    expect(notesSent()).toHaveLength(2);
+  });
+
   it("unsubscribes on destroy", () => {
     session.destroy();
     expect(unsubscribe).toHaveBeenCalled();

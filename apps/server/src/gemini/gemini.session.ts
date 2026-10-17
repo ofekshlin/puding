@@ -22,6 +22,20 @@ export interface DevinUpdateSource {
 /** Quiet time after the user's last words before a system note may speak. */
 export const USER_QUIET_MS = 1500;
 
+/** RMS level (of 32768) above which a 16-bit PCM chunk counts as speech. */
+export const SPEECH_RMS_THRESHOLD = 800;
+
+function isSpeech(pcm: Buffer): boolean {
+  const samples = Math.floor(pcm.length / 2);
+  if (!samples) return false;
+  let sum = 0;
+  for (let i = 0; i < samples; i++) {
+    const sample = pcm.readInt16LE(i * 2);
+    sum += sample * sample;
+  }
+  return Math.sqrt(sum / samples) > SPEECH_RMS_THRESHOLD;
+}
+
 export class GeminiSession implements LiveSession, DevinUpdateSubscriber {
   private readonly logger: Logger;
   private readonly geminiWs: WebSocket;
@@ -118,6 +132,7 @@ export class GeminiSession implements LiveSession, DevinUpdateSubscriber {
         this.logger.log("Gemini model execution interrupted (barge-in).");
         this.sendToClient({ type: "interrupted" });
         this.isModelBusy = false;
+        this.flushNotes();
         return;
       }
 
@@ -328,6 +343,7 @@ export class GeminiSession implements LiveSession, DevinUpdateSubscriber {
    * Translates and sends raw PCM audio binary buffer to Gemini.
    */
   public sendAudio(pcmData: Buffer): void {
+    if (isSpeech(pcmData)) this.lastUserSpeechAt = Date.now();
     const geminiAudioMsg: GeminiClientMessage = {
       realtimeInput: {
         audio: {

@@ -8,7 +8,6 @@ import {
 import { ClientIntegration, sessionCard } from "./devin-card";
 import { DilemmaParser } from "./dilemma-parser.service";
 import { SpokenReader } from "./spoken-reader.service";
-import { GetDevinSessionTool } from "./tools/get-devin-session.tool";
 import { spokenState } from "./tools/devin-tool.helpers";
 
 export interface DevinSessionUpdate {
@@ -56,6 +55,8 @@ export class DevinWatcher implements OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private seeded = false;
   private polling = false;
+  /** Bumped on stop so polls that outlive their subscribers are discarded. */
+  private generation = 0;
 
   constructor(
     @Inject(CodingAgentService)
@@ -97,8 +98,10 @@ export class DevinWatcher implements OnModuleDestroy {
   async poll(): Promise<void> {
     if (this.polling) return;
     this.polling = true;
+    const generation = this.generation;
     try {
       const sessions = await this.codingAgent.listSessions({ limit: 20 });
+      if (!this.isCurrent(generation)) return;
       const changed = sessions.filter((s) => {
         const previous = this.lastStates.get(s.id);
         this.lastStates.set(s.id, s.state);
@@ -108,7 +111,7 @@ export class DevinWatcher implements OnModuleDestroy {
       });
       this.seeded = true;
       for (const session of changed) {
-        await this.announce(session);
+        await this.announce(session, generation);
       }
     } catch (err) {
       this.logger.warn(
@@ -119,7 +122,14 @@ export class DevinWatcher implements OnModuleDestroy {
     }
   }
 
-  private async announce(session: AgentSession): Promise<void> {
+  private isCurrent(generation: number): boolean {
+    return generation === this.generation && this.subscribers.size > 0;
+  }
+
+  private async announce(
+    session: AgentSession,
+    generation: number,
+  ): Promise<void> {
     let latest: string | undefined;
     try {
       const messages = await this.codingAgent.getMessages(session.id, {
@@ -131,6 +141,8 @@ export class DevinWatcher implements OnModuleDestroy {
         `Could not read messages for ${session.id}: ${err instanceof Error ? err.message : err}`,
       );
     }
+
+    if (!this.isCurrent(generation)) return;
 
     const dilemma =
       latest && session.state === "waiting_for_user"
@@ -144,8 +156,12 @@ export class DevinWatcher implements OnModuleDestroy {
         `Devin has a question with ${dilemma.options.length} options; if the user wants to hear it, call read_devin_message with what="question".`,
       );
     } else if (latest) {
-      parts.push(`Devin said: ${GetDevinSessionTool.summarize(latest)}`);
+      parts.push(
+        "Devin's latest message is on the user's screen; offer to read it with read_devin_message.",
+      );
     }
+    // Devin's own text is never put in this turn: it is untrusted input and
+    // must not be able to instruct the voice model.
     parts.push(
       "Tell the user in one sentence and offer next steps. Do not call any tool unless they ask.",
     );
@@ -186,6 +202,7 @@ export class DevinWatcher implements OnModuleDestroy {
       clearInterval(this.timer);
       this.timer = undefined;
     }
+    this.generation++;
     this.seeded = false;
     this.lastStates.clear();
   }
