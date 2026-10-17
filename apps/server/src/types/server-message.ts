@@ -18,4 +18,8 @@ export type ServerMessage =
     }
   | {
       type: "interrupted";
+    }
+  | {
+      /** Sent before closing with 4401: some proxies (Render) drop close codes. */
+      type: "unauthorized";
     };
