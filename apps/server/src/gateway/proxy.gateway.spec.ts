@@ -110,6 +110,8 @@ describe("ProxyGateway (Unit)", () => {
     mockAccessGuard.isAuthorized.mockReturnValueOnce(false);
     const mockSocket = new EventEmitter() as any;
     mockSocket.close = jest.fn();
+    mockSocket.send = jest.fn();
+    jest.useFakeTimers();
     const mockReq = {
       url: "/?token=wrong",
       socket: { remoteAddress: "127.0.0.1" },
@@ -118,7 +120,13 @@ describe("ProxyGateway (Unit)", () => {
     gateway.handleConnection(mockSocket, mockReq);
 
     expect(mockAccessGuard.isAuthorized).toHaveBeenCalledWith(mockReq);
+    expect(mockSocket.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: "unauthorized" }),
+    );
+    expect(mockSocket.close).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(250);
     expect(mockSocket.close).toHaveBeenCalledWith(4401, "Unauthorized");
+    jest.useRealTimers();
     expect(mockSessionTracker.registerSession).not.toHaveBeenCalled();
     expect(mockLiveSessionService.createSession).not.toHaveBeenCalled();
 
