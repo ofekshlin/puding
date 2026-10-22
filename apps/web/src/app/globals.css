@@ -950,3 +950,19 @@ body {
     height: 120px;
   }
 }
+
+.access-token-prompt {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.access-token-label {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.access-token-submit {
+  padding: 0.5rem 1rem;
+}

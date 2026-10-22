@@ -2,6 +2,12 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useAudioRecorder } from "./useAudioRecorder";
 import { useAudioPlayer } from "./useAudioPlayer";
 import { resolveWsUrl } from "../lib/backendUrl";
+import {
+  readAccessToken,
+  storeAccessToken,
+  withAccessToken,
+  UNAUTHORIZED_CLOSE_CODE,
+} from "../lib/accessToken";
 
 export type ConnectionStatus =
   "disconnected" | "connecting" | "waking" | "connected" | "failed";
@@ -30,6 +36,8 @@ export interface UseLiveSessionResult {
   audioLevel: number;
   messages: ChatMessage[];
   isThinking: boolean;
+  accessTokenRequired: boolean;
+  submitAccessToken: (token: string) => void;
   connect: () => Promise<void>;
   disconnect: () => void;
   toggleRecording: () => Promise<void>;
@@ -42,6 +50,8 @@ export function useLiveSession(): UseLiveSessionResult {
   const [logs, setLogs] = useState<string[]>(["System ready."]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isThinking, setIsThinking] = useState<boolean>(false);
+  const [accessTokenRequired, setAccessTokenRequired] =
+    useState<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
   const wakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -84,7 +94,7 @@ export function useLiveSession(): UseLiveSessionResult {
     const wsUrl = await resolveWsUrl();
     addLog(`Connecting to WebSocket proxy at ${wsUrl}...`);
 
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket(withAccessToken(wsUrl, readAccessToken()));
     wsRef.current = ws;
 
     clearWakingTimer();
@@ -237,10 +247,15 @@ export function useLiveSession(): UseLiveSessionResult {
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       clearWakingTimer();
       setStatus("disconnected");
-      addLog("Connection closed.");
+      if (event.code === UNAUTHORIZED_CLOSE_CODE) {
+        setAccessTokenRequired(true);
+        addLog("Server rejected the access token.");
+      } else {
+        addLog("Connection closed.");
+      }
       stopRecording();
       stopPlayback();
       setIsThinking(false);
@@ -271,6 +286,15 @@ export function useLiveSession(): UseLiveSessionResult {
       wsRef.current = null;
     }
   }, [stopPlayback, clearWakingTimer]);
+
+  const submitAccessToken = useCallback(
+    (token: string) => {
+      storeAccessToken(token);
+      setAccessTokenRequired(false);
+      void connect();
+    },
+    [connect],
+  );
 
   const sendTextMessage = useCallback(
     (text: string) => {
@@ -345,6 +369,8 @@ export function useLiveSession(): UseLiveSessionResult {
     audioLevel,
     messages,
     isThinking,
+    accessTokenRequired,
+    submitAccessToken,
     connect,
     disconnect,
     toggleRecording,
