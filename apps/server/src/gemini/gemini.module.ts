@@ -22,6 +22,8 @@ import { ListDevinSessionsTool } from "../devin/tools/list-devin-sessions.tool";
 import { GetDevinSessionTool } from "../devin/tools/get-devin-session.tool";
 import { MessageDevinSessionTool } from "../devin/tools/message-devin-session.tool";
 import { StopDevinSessionTool } from "../devin/tools/stop-devin-session.tool";
+import { ReadDevinMessageTool } from "../devin/tools/read-devin-message.tool";
+import { AnswerDevinQuestionTool } from "../devin/tools/answer-devin-question.tool";
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { StopDevinSessionTool } from "../devin/tools/stop-devin-session.tool";
         getDevin: GetDevinSessionTool,
         messageDevin: MessageDevinSessionTool,
         stopDevin: StopDevinSessionTool,
+        readDevin: ReadDevinMessageTool,
+        answerDevin: AnswerDevinQuestionTool,
       ): GeminiTool[] => [
         read,
         create,
@@ -62,7 +66,15 @@ import { StopDevinSessionTool } from "../devin/tools/stop-devin-session.tool";
         ...(spotifyAuth.isConfigured() ? [play, queue, addToPlaylist] : []),
         ...(codingAgent.isConfigured() &&
         (!config.isPreview() || config.isDevinEnabledInPreview())
-          ? [startDevin, listDevin, getDevin, messageDevin, stopDevin]
+          ? [
+              startDevin,
+              listDevin,
+              getDevin,
+              messageDevin,
+              stopDevin,
+              readDevin,
+              answerDevin,
+            ]
           : []),
       ],
       inject: [
@@ -81,6 +93,8 @@ import { StopDevinSessionTool } from "../devin/tools/stop-devin-session.tool";
         GetDevinSessionTool,
         MessageDevinSessionTool,
         StopDevinSessionTool,
+        ReadDevinMessageTool,
+        AnswerDevinQuestionTool,
       ],
     },
   ],
