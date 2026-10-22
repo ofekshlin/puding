@@ -58,7 +58,7 @@ Status model we map to speech:
 | `suspended` / `inactivity`, `user_request`          | "asleep"            | no      |
 | `suspended` / usage-limit reasons, `error` / `exit` | "stopped: <reason>" | **yes** |
 
-> The exact query parameters of `GET /sessions` (tag filter, page size) must be confirmed against the live API in stage 30. If tag filtering is not supported server-side, `DevinService` filters by the `puding` tag client-side over the most recent page.
+> Stage 30 confirmed the routes and fields above against the v3 API reference: timestamps are Unix integers, pull requests are `pr_url`/`pr_state`, and messages page with `first`/`after`. The v3 reference does not document the `GET /sessions` query parameters, so `DevinService` sends `first` and `tags=puding` as hints and always filters by the `puding` tag client-side over the most recent page. Verify against the live API once a token is configured.
 
 ---
 
