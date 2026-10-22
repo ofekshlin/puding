@@ -86,6 +86,18 @@ export class SpokenReader {
     return this.move(cursor, navigate);
   }
 
+  /**
+   * Sections and position of the message being read, for the reading card.
+   */
+  cursorView(
+    context: ToolContext | undefined,
+  ): { sections: SpokenSection[]; current: number } | undefined {
+    const cursor = this.state(context).cursor;
+    return cursor
+      ? { sections: cursor.sections, current: cursor.index }
+      : undefined;
+  }
+
   rememberDilemma(
     context: ToolContext | undefined,
     devinId: string,

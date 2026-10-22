@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ChatMessage } from "../hooks/useLiveSession";
 
 interface ChatWindowProps {
@@ -97,10 +97,218 @@ const SearchCard: React.FC<IntegrationCardProps> = ({ data }) => (
   </div>
 );
 
+const DEVIN_STATE_LABELS: Record<string, string> = {
+  working: "Working",
+  waiting_for_user: "Needs you",
+  waiting_for_approval: "Needs approval",
+  finished: "Finished",
+  sleeping: "Asleep",
+  stopped: "Stopped",
+};
+
+const safeHref = (url?: string) =>
+  url && /^https:\/\//.test(url) ? url : undefined;
+
+const DevinStateBadge: React.FC<{ state: string }> = ({ state }) => (
+  <span className={`badge devin-badge devin-state-${state}`}>
+    {DEVIN_STATE_LABELS[state] ?? state}
+  </span>
+);
+
+const DevinHeader: React.FC<{
+  title: string;
+  children?: React.ReactNode;
+}> = ({ title, children }) => (
+  <div className="card-header">
+    <span className="card-icon">🤖</span>
+    <span className="card-title">{title}</span>
+    {children}
+  </div>
+);
+
+const DevinOpenLink: React.FC<{ url?: string }> = ({ url }) => {
+  const href = safeHref(url);
+  return href ? (
+    <a
+      className="devin-open-link"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Open in Devin
+    </a>
+  ) : null;
+};
+
+const DevinSessionCard: React.FC<IntegrationCardProps> = ({ data }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="integration-card devin-card">
+      <DevinHeader title="Devin Session">
+        <DevinStateBadge state={data.state} />
+      </DevinHeader>
+      <div className="card-body">
+        <strong className="devin-title">{data.title}</strong>
+        {data.stateReason && (
+          <span className="devin-muted">{data.stateReason}</span>
+        )}
+        {data.latestMessage && (
+          <>
+            <div
+              className={`devin-message ${expanded ? "expanded" : "collapsed"}`}
+            >
+              {data.latestMessage}
+            </div>
+            <button
+              type="button"
+              className="devin-toggle"
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? "Show less" : "Show more"}
+            </button>
+          </>
+        )}
+        {data.pullRequests?.length > 0 && (
+          <div className="devin-prs">
+            {data.pullRequests.map((pr: any, idx: number) => (
+              <a
+                key={idx}
+                href={safeHref(pr.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Pull request {idx + 1}
+                {pr.state ? ` (${pr.state})` : ""}
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="card-footer">
+        <DevinOpenLink url={data.url} />
+      </div>
+    </div>
+  );
+};
+
+const DevinSessionListCard: React.FC<IntegrationCardProps> = ({ data }) => (
+  <div className="integration-card devin-card">
+    <DevinHeader title="Devin Sessions" />
+    <div className="card-body">
+      {data.sessions?.length ? (
+        <ol className="devin-list">
+          {data.sessions.map((s: any) => (
+            <li key={s.index} className="devin-list-row">
+              <span className="devin-index">{s.index}</span>
+              <a
+                href={safeHref(s.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {s.title}
+              </a>
+              <DevinStateBadge state={s.state} />
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="devin-muted">No sessions.</p>
+      )}
+    </div>
+  </div>
+);
+
+const DevinReadingCard: React.FC<IntegrationCardProps> = ({ data }) => {
+  const total = data.sections?.length ?? 0;
+  const progress =
+    data.current < 0
+      ? "Outline"
+      : data.current >= total
+        ? "Done"
+        : `${data.current + 1} of ${total}`;
+  return (
+    <div className="integration-card devin-card">
+      <DevinHeader title="Reading">
+        <span className="badge devin-badge">{progress}</span>
+      </DevinHeader>
+      <div className="card-body">
+        <strong className="devin-title">{data.title}</strong>
+        {data.sections?.map((section: any, idx: number) => (
+          <div
+            key={idx}
+            className={`devin-section ${idx === data.current ? "current" : ""}`}
+          >
+            <span className="devin-section-heading">{section.heading}</span>
+            <p>{section.text}</p>
+          </div>
+        ))}
+      </div>
+      <div className="card-footer">
+        <DevinOpenLink url={data.url} />
+      </div>
+    </div>
+  );
+};
+
+const DevinQuestionCard: React.FC<IntegrationCardProps> = ({ data }) => (
+  <div className="integration-card devin-card">
+    <DevinHeader title="Devin asks" />
+    <div className="card-body">
+      <strong className="devin-title">{data.question}</strong>
+      <ol className="devin-list">
+        {data.options?.map((option: any) => (
+          <li key={option.label} className="devin-option">
+            <span className="devin-index">{option.label}</span>
+            <span>{option.text}</span>
+            {data.recommendation?.label === option.label && (
+              <span className="badge devin-badge devin-recommended">
+                Recommended
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+      {data.recommendation?.reason && (
+        <span className="devin-muted">{data.recommendation.reason}</span>
+      )}
+    </div>
+    <div className="card-footer">
+      <DevinOpenLink url={data.url} />
+    </div>
+  </div>
+);
+
+const DevinConfirmCard: React.FC<IntegrationCardProps> = ({ data }) => (
+  <div className="integration-card devin-card devin-confirm">
+    <DevinHeader
+      title={data.action === "stop" ? "Stop session?" : "Start session?"}
+    >
+      <span className="badge devin-badge">Waiting for your yes</span>
+    </DevinHeader>
+    <div className="card-body">
+      <span>{data.readBack}</span>
+    </div>
+  </div>
+);
+
+const DEVIN_RENDERERS: Record<string, React.FC<IntegrationCardProps>> = {
+  session: DevinSessionCard,
+  list: DevinSessionListCard,
+  reading: DevinReadingCard,
+  question: DevinQuestionCard,
+  confirm: DevinConfirmCard,
+};
+
+const DevinCard: React.FC<IntegrationCardProps> = ({ data }) => {
+  const Renderer = DEVIN_RENDERERS[data?.kind] || DefaultIntegrationCard;
+  return <Renderer data={data} />;
+};
+
 const INTEGRATION_RENDERERS: Record<string, React.FC<IntegrationCardProps>> = {
   spotify: SpotifyCard,
   notion: NotionCard,
   search: SearchCard,
+  devin: DevinCard,
 };
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({

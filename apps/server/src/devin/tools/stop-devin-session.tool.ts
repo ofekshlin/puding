@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import { devinCard, sessionCard } from "../devin-card";
 import { CodingAgentService } from "../coding-agent.interface";
 import { DEVIN_TOOL_INSTRUCTIONS } from "../devin-instructions";
 import { SessionResolver } from "../session-resolver.service";
@@ -47,10 +48,16 @@ export class StopDevinSessionTool extends GeminiTool {
     const { session } = result;
 
     if (args.confirmed !== true) {
+      const readBack = `Stop the Devin session "${session.title}"? This can't be undone.`;
       return {
+        clientIntegration: devinCard({
+          kind: "confirm",
+          action: "stop",
+          readBack,
+        }),
         output: {
           status: "needs_confirmation",
-          readBack: `Stop the Devin session "${session.title}"? This can't be undone.`,
+          readBack,
           instruction:
             "Read this back and call again with confirmed=true only after the user says yes.",
         },
@@ -58,6 +65,13 @@ export class StopDevinSessionTool extends GeminiTool {
     }
 
     await this.codingAgent.stopSession(session.id);
-    return { output: { status: "stopped", title: session.title } };
+    return {
+      clientIntegration: sessionCard({
+        ...session,
+        state: "stopped",
+        stateReason: undefined,
+      }),
+      output: { status: "stopped", title: session.title },
+    };
   }
 }
