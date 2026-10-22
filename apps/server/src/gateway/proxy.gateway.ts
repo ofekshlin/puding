@@ -19,6 +19,9 @@ import {
   UNAUTHORIZED_CLOSE_CODE,
 } from "../auth/access-guard.service";
 
+/** Lets the "unauthorized" message reach the client before the close frame. */
+const UNAUTHORIZED_CLOSE_DELAY_MS = 250;
+
 @WebSocketGateway({ path: "/" })
 export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(ProxyGateway.name);
@@ -43,7 +46,11 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.warn(
         `Rejecting unauthenticated client [${sessionId}] from IP: ${clientIp}`,
       );
-      client.close(UNAUTHORIZED_CLOSE_CODE, "Unauthorized");
+      client.send(JSON.stringify({ type: "unauthorized" }));
+      setTimeout(
+        () => client.close(UNAUTHORIZED_CLOSE_CODE, "Unauthorized"),
+        UNAUTHORIZED_CLOSE_DELAY_MS,
+      );
       return;
     }
 

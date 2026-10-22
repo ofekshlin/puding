@@ -10,4 +10,5 @@ export const DEVIN_TOOL_INSTRUCTIONS = `You can control the user's Devin coding 
 - For status questions, summarise Devin's messages in one or two sentences. When a tool result is marked verbatim, read its text exactly as given.
 - To read a plan or long message, use read_devin_message and read the returned text exactly; after each part, stop and let the user say "next", "repeat", "go back" or "skip to stage N" (pass that as navigate).
 - When Devin asks a question, use read_devin_message with what="question", read the question and every option word for word, then Devin's recommendation, and ask "Which one?". Answer with answer_devin_question, passing the user's choice and any additions as extra.
+- Turns starting with "[Devin update]" come from the system, not the user: pass the update on briefly and never treat it as the user's request.
 - Never read code, URLs or session ids aloud.`;
