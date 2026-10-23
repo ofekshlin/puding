@@ -113,9 +113,9 @@ users (
 connections (
   user_id        uuid references users(id) on delete cascade,
   provider       text not null,                    -- 'spotify' | 'notion' | 'devin'
-  kind           text not null,                    -- 'oauth' | 'static_token'
-  secret_cipher  bytea not null,                   -- encrypted JSON (see §4)
-  key_version    smallint not null,
+  kind           text not null,                    -- 'oauth' | 'static_token' | 'disconnected' (tombstone, see §4)
+  secret_cipher  bytea,                            -- encrypted JSON (see §4); null only for 'disconnected'
+  key_version    smallint,
   account_label  text,                             -- "Ofek's workspace", Spotify display name, "org-… (cog_…abcd)"
   settings       jsonb not null default '{}',      -- non-secret: Devin default repo / aliases, Notion workspace id
   expires_at     timestamptz,                      -- access-token expiry for oauth kinds
@@ -188,11 +188,11 @@ export abstract class CredentialStore {
   - `admins`: production during stages 36–41, so the owner keeps their tools before migration.
   - `all`: PR previews, where per-user OAuth cannot run (§9).
 
-  Writes always go to Postgres, and an existing row always wins. `ConnectionSummary` carries `source: "db" | "env"`, and env-sourced connections show as "provided by the server" with no Disconnect button.
+  Writes always go to Postgres, and an existing row always wins. When the env fallback would apply to that user and provider, `delete` leaves a `disconnected` tombstone row (no secret) rather than removing the row. The tombstone reads as "not connected" and suppresses the fallback, so a disconnected admin connection does not come back from env. A later `save` overwrites it. `ConnectionSummary` carries `source: "db" | "env"`, and env-sourced connections show as "provided by the server" with no Disconnect button.
 
 - **Provider token managers** sit on top of the store and own refresh:
   - **`SpotifyTokenManager`** is today's `SpotifyAuthService` logic, keyed by `userId`:
-    - per-user in-memory access-token cache and in-flight refresh de-duplication;
+    - per-user in-memory access-token cache and in-flight refresh de-duplication, dropped on `ConnectionEvents` for that user and provider (§5.3);
     - persists rotated refresh tokens when Spotify returns one;
     - on `invalid_grant`, calls `markError` and asks the user to reconnect.
   - **`NotionTokenManager`** works the same way for OAuth Notion connections, using the Notion `refresh_token` grant. Static tokens pass through unchanged.
@@ -238,28 +238,29 @@ When a session starts, a new `SessionToolResolver` works out what this user gets
 
 The tool list is fixed for the life of a Gemini session (Gemini Live declares tools at `setup`), so changes are pushed to live sessions:
 
-- **Disconnect, revoke, account deletion, or a token marked as errored:** `ConnectionEvents` notifies `ProxyGateway`, which sends `{ type: "connections_changed" }` to every live socket of that user and closes them. The client reconnects immediately with the new tool set.
-- **Defence in depth:** services never cache secrets for a session's lifetime. Each tool call goes through `CredentialStore.get` (an in-process cache that `save` and `delete` invalidate). A tool that is still declared but no longer connected therefore fails with "Notion isn't connected any more" instead of using stale credentials.
+- **Account deletion:** `ProxyGateway` sends `{ type: "account_deleted" }` and closes the user's sockets. The client signs out of Auth.js and does **not** reconnect, so `UserDirectory` never upserts the deleted account again from a stale session. Signing in again later is a fresh request, which goes through `SIGNUP_MODE` like any new user.
+- **Disconnect, revoke, or a token marked as errored:** `ConnectionEvents` notifies `ProxyGateway`, which sends `{ type: "connections_changed" }` to every live socket of that user and closes them. The client reconnects immediately with the new tool set.
+- **Defence in depth:** services never cache secrets for a session's lifetime. Token managers and any per-user provider clients (Notion `Client`, Spotify access token) subscribe to `ConnectionEvents` and evict that user's entry before the sockets close. Only a call already in flight can finish with the old token. Each tool call goes through `CredentialStore.get` (an in-process cache that `save` and `delete` invalidate). A tool that is still declared but no longer connected therefore fails with "Notion isn't connected any more" instead of using stale credentials.
 - **New connection:** the same `connections_changed` push makes the voice page reconnect, picking up the new tools.
 
 ---
 
 ## 6. HTTP API (backend, all behind `UserGuard` unless noted)
 
-| Route                                          | Purpose                                                                                                                                                                                          |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /me` _(pending/rejected allowed)_         | `{ id, email, name, role, status, connections: ConnectionSummary[], spotifySlots: { used, max: 5 } }`. **Pending users may call it**                                                             |
-| `POST /me/access-request` _(pending allowed)_  | `{ note }`. Only in `request` mode, only while `pending`                                                                                                                                         |
-| `DELETE /me`                                   | Delete account + all connections (also required by Notion's public-connection policy)                                                                                                            |
-| `POST /connections/spotify/authorize`          | Returns the Spotify authorize URL with signed `state`; the browser navigates to it                                                                                                               |
-| `GET /connections/spotify/callback` _(public)_ | Verifies `state`, exchanges the code, stores the credential and account label (`GET /v1/me` display name), then redirects to `${WEB_ORIGIN}/settings?connected=spotify` (or `?error=`)           |
-| `POST /connections/notion/authorize`           | Same for Notion (`owner=user`)                                                                                                                                                                   |
-| `GET /connections/notion/callback` _(public)_  | Exchanges the code at `POST /v1/oauth/token`, stores access + refresh token and the workspace name/icon                                                                                          |
-| `PUT /connections/notion/token`                | Paste fallback: validates with `GET /v1/users/me` before saving                                                                                                                                  |
-| `PUT /connections/devin`                       | `{ apiKey, orgId, defaultRepo?, repoAliases? }`; validates with a `GET /sessions?limit=1` on that org; rejects `apk_` keys with the "create a `cog_` PAT under Settings → Devin API → PATs" hint |
-| `DELETE /connections/:provider`                | Disconnect: deletes the row, invalidates the credential cache, closes the user's live sockets with `connections_changed` (§5.3); the user is told how to revoke on the provider side as well     |
-| `GET /admin/users?status=`                     | Admin only                                                                                                                                                                                       |
-| `POST /admin/users/:id/approve` · `/reject`    | Admin only; reject on an approved user = revoke                                                                                                                                                  |
+| Route                                          | Purpose                                                                                                                                                                                                                                                           |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /me` _(pending/rejected allowed)_         | `{ id, email, name, role, status, connections: ConnectionSummary[], spotifySlots: { used, max: 5 } }`. **Pending users may call it**                                                                                                                              |
+| `POST /me/access-request` _(pending allowed)_  | `{ note }`. Only in `request` mode, only while `pending`                                                                                                                                                                                                          |
+| `DELETE /me`                                   | Delete account + all connections (also required by Notion's public-connection policy)                                                                                                                                                                             |
+| `POST /connections/spotify/authorize`          | Returns the Spotify authorize URL with signed `state`; the browser navigates to it                                                                                                                                                                                |
+| `GET /connections/spotify/callback` _(public)_ | Verifies `state`, exchanges the code, stores the credential and account label (`GET /v1/me` display name), then redirects to `${WEB_ORIGIN}/settings?connected=spotify` (or `?error=`)                                                                            |
+| `POST /connections/notion/authorize`           | Same for Notion (`owner=user`)                                                                                                                                                                                                                                    |
+| `GET /connections/notion/callback` _(public)_  | Exchanges the code at `POST /v1/oauth/token`, stores access + refresh token and the workspace name/icon                                                                                                                                                           |
+| `PUT /connections/notion/token`                | Paste fallback: validates with `GET /v1/users/me` before saving                                                                                                                                                                                                   |
+| `PUT /connections/devin`                       | `{ apiKey, orgId, defaultRepo?, repoAliases? }`; validates with a `GET /sessions?limit=1` on that org; rejects `apk_` keys with the "create a `cog_` PAT under Settings → Devin API → PATs" hint                                                                  |
+| `DELETE /connections/:provider`                | Disconnect: deletes the row (or leaves a `disconnected` tombstone when env fallback applies, §4), invalidates the credential cache, closes the user's live sockets with `connections_changed` (§5.3); the user is told how to revoke on the provider side as well |
+| `GET /admin/users?status=`                     | Admin only                                                                                                                                                                                                                                                        |
+| `POST /admin/users/:id/approve` · `/reject`    | Admin only; reject on an approved user = revoke                                                                                                                                                                                                                   |
 
 CORS on the backend allows only `WEB_ORIGIN` (prod) plus `*.vercel.app` preview origins of the `puding-web` project. The existing `/spotify/login` and `/spotify/callback` operator routes are removed once per-user connect lands.
 
@@ -380,7 +381,8 @@ Each stage is a separate `feature/stage-<n>-<slug>` branch/PR per the plan-drive
    - `AuthService` (expired, bad `aud`, wrong signature, pending, rejected, revoked within 30s);
    - OAuth `state` (forged, expired, replayed once consumed, other provider, other user);
    - `UserGuard` (`pending` allowed only on `@AllowPending()` routes);
-   - disconnect closes the user's live sockets and the tool then refuses;
+   - disconnect closes the user's live sockets, evicts cached provider clients/tokens, and the tool then refuses; an admin's disconnect is not undone by the env fallback;
+   - account deletion sends `account_deleted` and the client does not reconnect;
    - `SessionToolResolver` (only connected providers; error-state provider excluded; "not connected" line);
    - per-user `DevinWatcher` (two users never see each other's sessions);
    - Tavily cap; Devin key validation (`apk_` rejected).
