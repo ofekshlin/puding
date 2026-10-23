@@ -7,10 +7,12 @@ import { NotionModule } from "./notion/notion.module";
 import { SearchModule } from "./search/search.module";
 import { SpotifyModule } from "./spotify/spotify.module";
 import { HealthModule } from "./health/health.module";
+import { DatabaseModule } from "./database/database.module";
 
 @Module({
   imports: [
     ConfigModule,
+    DatabaseModule,
     GeminiModule,
     GatewayModule,
     SessionModule,
