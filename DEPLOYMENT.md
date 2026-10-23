@@ -98,22 +98,25 @@ The backend must be deployed first so we have the production WebSocket URL ready
 
 In the **Environment Variables** section on Render, add:
 
-| Key                         | Value / Description                                                         | Required                            |
-| :-------------------------- | :-------------------------------------------------------------------------- | :---------------------------------- |
-| `PORT`                      | `10000` _(Render sets this automatically)_                                  | Auto                                |
-| `GEMINI_API_KEY`            | Your Google AI Studio API key                                               | **Yes**                             |
-| `NOTION_TOKEN`              | Your Notion internal integration secret (`ntn_...`)                         | **Yes**                             |
-| `TAVILY_API_KEY`            | Your Tavily Search API key (`tvly-...`)                                     | Optional                            |
-| `PUDING_ACCESS_TOKEN`       | Long random secret clients must enter once (e.g. `openssl rand -hex 32`)    | **Yes** (open to anyone without it) |
-| `DEVIN_API_KEY`             | Devin personal access token (`cog_...`) for voice control of Devin          | Optional                            |
-| `DEVIN_ORG_ID`              | Devin organization ID (`org-...`); required together with `DEVIN_API_KEY`   | Optional                            |
-| `DEVIN_DEFAULT_REPO`        | Repo Devin works on when none is named (e.g. `ofekshlin/puding`)            | Optional                            |
-| `DEVIN_REPO_ALIASES`        | Spoken repo names, e.g. `puding=ofekshlin/puding,site=ofekshlin/site`       | Optional                            |
-| `DEVIN_MAX_ACU_PER_SESSION` | ACU cap on every Puding-created Devin session (default `10`)                | Optional                            |
-| `DEVIN_MAX_ACTIVE_SESSIONS` | Max Puding-created Devin sessions working at once (default `3`)             | Optional                            |
-| `DEVIN_ENABLE_IN_PREVIEW`   | Set to `true` to register Devin tools in PR previews (off by default)       | Optional                            |
-| `DEVIN_POLL_INTERVAL_MS`    | How often Devin sessions are checked while Puding is open (default `20000`) | Optional                            |
-| `NODE_ENV`                  | `production`                                                                | Recommended                         |
+| Key                           | Value / Description                                                              | Required                            |
+| :---------------------------- | :------------------------------------------------------------------------------- | :---------------------------------- |
+| `PORT`                        | `10000` _(Render sets this automatically)_                                       | Auto                                |
+| `GEMINI_API_KEY`              | Your Google AI Studio API key                                                    | **Yes**                             |
+| `NOTION_TOKEN`                | Your Notion internal integration secret (`ntn_...`)                              | **Yes**                             |
+| `TAVILY_API_KEY`              | Your Tavily Search API key (`tvly-...`)                                          | Optional                            |
+| `PUDING_ACCESS_TOKEN`         | Long random secret clients must enter once (e.g. `openssl rand -hex 32`)         | **Yes** (open to anyone without it) |
+| `DEVIN_API_KEY`               | Devin personal access token (`cog_...`) for voice control of Devin               | Optional                            |
+| `DEVIN_ORG_ID`                | Devin organization ID (`org-...`); required together with `DEVIN_API_KEY`        | Optional                            |
+| `DEVIN_DEFAULT_REPO`          | Repo Devin works on when none is named (e.g. `ofekshlin/puding`)                 | Optional                            |
+| `DEVIN_REPO_ALIASES`          | Spoken repo names, e.g. `puding=ofekshlin/puding,site=ofekshlin/site`            | Optional                            |
+| `DEVIN_MAX_ACU_PER_SESSION`   | ACU cap on every Puding-created Devin session (default `10`)                     | Optional                            |
+| `DEVIN_MAX_ACTIVE_SESSIONS`   | Max Puding-created Devin sessions working at once (default `3`)                  | Optional                            |
+| `DEVIN_ENABLE_IN_PREVIEW`     | Set to `true` to register Devin tools in PR previews (off by default)            | Optional                            |
+| `DEVIN_POLL_INTERVAL_MS`      | How often Devin sessions are checked while Puding is open (default `20000`)      | Optional                            |
+| `DATABASE_URL`                | Neon Postgres connection string (Phase 8); unset keeps the env-only mode         | Optional                            |
+| `CREDENTIALS_ENCRYPTION_KEYS` | `1:<openssl rand -base64 32>`; required with `DATABASE_URL`; add `2:…` to rotate | With `DATABASE_URL`                 |
+| `ENV_CREDENTIALS_FOR`         | `none` (default), `admins` (owner keeps env keys) or `all` (PR previews)         | Optional                            |
+| `NODE_ENV`                    | `production`                                                                     | Recommended                         |
 
 #### 4. Deploy and Note the WebSocket Endpoint
 
