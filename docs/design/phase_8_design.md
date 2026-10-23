@@ -64,7 +64,7 @@ Puding has two origins: the PWA on Vercel and the NestJS backend on Render. Brow
 4. **Backend `AuthService`** verifies the JWT with `jose` (signature, `aud`, `exp`). It then resolves the user through `UserDirectory`, which upserts on first sight, and checks `status === "approved"`.
    - It replaces `AccessGuard` in `ProxyGateway.handleConnection`.
    - A rejected socket gets `{ type: "unauthorized", reason }` before the close. This follows the Render close-code gotcha: a server-side `close(4401)` reaches the browser as `1006`.
-5. **`UserGuard`** (Nest `CanActivate`) does the same for REST controllers and attaches `req.user`.
+5. **`UserGuard`** (Nest `CanActivate`) does the same for REST controllers and attaches `req.user`. It requires `approved` by default. Routes marked `@AllowPending()` (`GET /me`, `POST /me/access-request`) accept a verified `pending` user so they can see their status and send their request. `rejected` users get only `GET /me`, which drives the invite-only screen.
 
 `PUDING_ACCESS_TOKEN` and `AccessTokenPrompt` are removed in stage 42, once Google sign-in is live in production.
 
@@ -133,7 +133,16 @@ usage_counters (
 )
 ```
 
-OAuth `state` is a signed, 10-minute JWT carrying `{ userId, provider, nonce }`, so it needs no table. This also fixes the current `SpotifyAuthController.pendingState`, a single in-memory field that only works for one user at a time.
+```sql
+oauth_states (
+  nonce        text primary key,                   -- random 256-bit, also the JWT `jti`
+  user_id      uuid references users(id) on delete cascade,
+  provider     text not null,
+  expires_at   timestamptz not null                -- issued_at + 10 minutes
+)
+```
+
+OAuth `state` is a signed, 10-minute JWT carrying `{ userId, provider, nonce }`. Each `state` can be used once: the authorize endpoint inserts the `nonce` row, and the callback consumes it with `DELETE … WHERE nonce = $1 AND user_id = $2 AND provider = $3 AND expires_at > now() RETURNING *` **before** exchanging the code. A replayed, cross-provider or expired `state` is therefore rejected even when its signature is valid. Expired rows are purged on each insert. This also fixes the current `SpotifyAuthController.pendingState`, a single in-memory field that only works for one user at a time.
 
 ---
 
@@ -173,7 +182,14 @@ export abstract class CredentialStore {
 - **`PostgresCredentialStore`** encrypts with `CredentialCipher`:
   - **AES-256-GCM**, a random 96-bit IV per write, and `user_id:provider` as additional authenticated data, so a ciphertext copied into another user's row fails to decrypt.
   - Keys come from `CREDENTIALS_ENCRYPTION_KEYS` (comma-separated `version:base64key`). The newest key encrypts and any listed key decrypts, which allows rotation without downtime.
-- **`EnvCredentialStore`** is used when `DATABASE_URL` is unset (local dev, tests, previews without a DB). It serves today's env vars to a single implicit `local` user, so `pnpm dev` keeps working with only `apps/server/.env`.
+- **`EnvCredentialStore`** serves today's env vars (`NOTION_TOKEN`, `SPOTIFY_REFRESH_TOKEN`, `DEVIN_*`) as read-only credentials. When `DATABASE_URL` is unset (local dev, tests), it is the whole store, behind a single implicit `local` user, so `pnpm dev` keeps working with only `apps/server/.env`.
+- **`LayeredCredentialStore`** is what the app injects when a database exists. It looks in Postgres first, then falls back to `EnvCredentialStore`, depending on `ENV_CREDENTIALS_FOR`:
+  - `none`: the default, and the end state after stage 42.
+  - `admins`: production during stages 36–41, so the owner keeps their tools before migration.
+  - `all`: PR previews, where per-user OAuth cannot run (§9).
+
+  Writes always go to Postgres, and an existing row always wins. `ConnectionSummary` carries `source: "db" | "env"`, and env-sourced connections show as "provided by the server" with no Disconnect button.
+
 - **Provider token managers** sit on top of the store and own refresh:
   - **`SpotifyTokenManager`** is today's `SpotifyAuthService` logic, keyed by `userId`:
     - per-user in-memory access-token cache and in-flight refresh de-duplication;
@@ -217,10 +233,14 @@ The abstractions stay the same: `MusicService`, `CodingAgentService` and `Search
 When a session starts, a new `SessionToolResolver` works out what this user gets:
 
 1. It loads `credentialStore.listConnected(userId)`.
-2. It keeps the tools whose `requires` is connected and not in an error state. Only those are declared to Gemini and contribute `instructions`.
+2. It keeps the tools whose `requires` is connected (from either source) and not in an error state. Only those are declared to Gemini and contribute `instructions`.
 3. It appends one server-owned line for services the user has not connected: _"Spotify and Devin are not connected for this user. If asked, say they can connect them in Puding's Settings."_ Puding can then answer "connect Spotify in Settings" instead of failing silently.
 
-The tool list is fixed for the life of a Gemini session (Gemini Live declares tools at `setup`). After the user connects something, the client reconnects, and the Settings page triggers this automatically when the voice page regains focus.
+The tool list is fixed for the life of a Gemini session (Gemini Live declares tools at `setup`), so changes are pushed to live sessions:
+
+- **Disconnect, revoke, account deletion, or a token marked as errored:** `ConnectionEvents` notifies `ProxyGateway`, which sends `{ type: "connections_changed" }` to every live socket of that user and closes them. The client reconnects immediately with the new tool set.
+- **Defence in depth:** services never cache secrets for a session's lifetime. Each tool call goes through `CredentialStore.get` (an in-process cache that `save` and `delete` invalidate). A tool that is still declared but no longer connected therefore fails with "Notion isn't connected any more" instead of using stale credentials.
+- **New connection:** the same `connections_changed` push makes the voice page reconnect, picking up the new tools.
 
 ---
 
@@ -228,8 +248,8 @@ The tool list is fixed for the life of a Gemini session (Gemini Live declares to
 
 | Route                                          | Purpose                                                                                                                                                                                          |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /me`                                      | `{ id, email, name, role, status, connections: ConnectionSummary[], spotifySlots: { used, max: 5 } }`. **Pending users may call it**                                                             |
-| `POST /me/access-request`                      | `{ note }`. Only in `request` mode, only while `pending`                                                                                                                                         |
+| `GET /me` _(pending/rejected allowed)_         | `{ id, email, name, role, status, connections: ConnectionSummary[], spotifySlots: { used, max: 5 } }`. **Pending users may call it**                                                             |
+| `POST /me/access-request` _(pending allowed)_  | `{ note }`. Only in `request` mode, only while `pending`                                                                                                                                         |
 | `DELETE /me`                                   | Delete account + all connections (also required by Notion's public-connection policy)                                                                                                            |
 | `POST /connections/spotify/authorize`          | Returns the Spotify authorize URL with signed `state`; the browser navigates to it                                                                                                               |
 | `GET /connections/spotify/callback` _(public)_ | Verifies `state`, exchanges the code, stores the credential and account label (`GET /v1/me` display name), then redirects to `${WEB_ORIGIN}/settings?connected=spotify` (or `?error=`)           |
@@ -237,7 +257,7 @@ The tool list is fixed for the life of a Gemini session (Gemini Live declares to
 | `GET /connections/notion/callback` _(public)_  | Exchanges the code at `POST /v1/oauth/token`, stores access + refresh token and the workspace name/icon                                                                                          |
 | `PUT /connections/notion/token`                | Paste fallback: validates with `GET /v1/users/me` before saving                                                                                                                                  |
 | `PUT /connections/devin`                       | `{ apiKey, orgId, defaultRepo?, repoAliases? }`; validates with a `GET /sessions?limit=1` on that org; rejects `apk_` keys with the "create a `cog_` PAT under Settings → Devin API → PATs" hint |
-| `DELETE /connections/:provider`                | Disconnect (deletes the row; the user is told how to revoke on the provider side as well)                                                                                                        |
+| `DELETE /connections/:provider`                | Disconnect: deletes the row, invalidates the credential cache, closes the user's live sockets with `connections_changed` (§5.3); the user is told how to revoke on the provider side as well     |
 | `GET /admin/users?status=`                     | Admin only                                                                                                                                                                                       |
 | `POST /admin/users/:id/approve` · `/reject`    | Admin only; reject on an approved user = revoke                                                                                                                                                  |
 
@@ -257,7 +277,7 @@ The shared keys are the remaining spend risk. Notion, Spotify and Devin spend no
    - OAuth codes and tokens are never logged.
    - `ConnectionSummary` never includes secrets.
    - The Devin key is displayed only as `cog_…abcd`.
-6. **CSRF:** OAuth `state` is signed and bound to the user. The authorize endpoints are `POST` with a Bearer token, so a third-party page cannot start a connect flow on the user's behalf.
+6. **CSRF / replay:** OAuth `state` is signed, bound to user + provider, and single-use via `oauth_states` (§3). The authorize endpoints are `POST` with a Bearer token, so a third-party page cannot start a connect flow on the user's behalf, and a leaked `state` cannot be replayed to overwrite a connection.
 
 ---
 
@@ -286,6 +306,7 @@ All new screens follow the existing styling rules (CSS custom properties in `glo
 
 - `DATABASE_URL`
 - `CREDENTIALS_ENCRYPTION_KEYS`
+- `ENV_CREDENTIALS_FOR` (`none` | `admins` | `all`)
 - `PUDING_AUTH_SECRET`
 - `WEB_ORIGIN`
 - `SIGNUP_MODE`, `ADMIN_EMAILS`, `ALLOWED_EMAILS`
@@ -310,7 +331,7 @@ All new screens follow the existing styling rules (CSS custom properties in `glo
 
 - **Google sign-in** works through Auth.js's redirect proxy (`AUTH_REDIRECT_PROXY_URL` pointing at production). Previews are also still behind Vercel Authentication.
 - **Database:** previews get a separate Neon branch, `preview`, shared by all PRs. Its `DATABASE_URL` goes in the `puding-preview-secrets` env group, so preview data never touches production users.
-- **Spotify/Notion OAuth** cannot redirect to per-PR Render hostnames, because they need exact redirect URIs. Previews therefore fall back to `EnvCredentialStore` values for those providers, i.e. the existing shared preview credentials. A preview never reads a real user's tokens.
+- **Spotify/Notion OAuth** cannot redirect to per-PR Render hostnames, because they need exact redirect URIs. Previews therefore set `ENV_CREDENTIALS_FOR=all` (in `puding-preview-secrets`), so `LayeredCredentialStore` serves the existing shared preview credentials to every preview user. The `preview` Neon branch holds no production tokens, so a preview never reads a real user's tokens.
 - **Devin** keeps the `DEVIN_ENABLE_IN_PREVIEW` gate.
 
 **Local dev** keeps working with no DB and no Google client: `DATABASE_URL` unset → `EnvCredentialStore` + a `local` user, and the auth layer accepts a dev token when `NODE_ENV !== "production"` and `PUDING_AUTH_SECRET` is unset. `ConfigService` refuses to start in production without `DATABASE_URL`, `PUDING_AUTH_SECRET` and `CREDENTIALS_ENCRYPTION_KEYS`.
@@ -322,7 +343,7 @@ All new screens follow the existing styling rules (CSS custom properties in `glo
 - Notion as `static_token`.
 - Spotify as `oauth`. The refresh token was issued by the same client ID, so it stays valid.
 
-After verification, those env vars are removed from the production service. Nothing has to be reconnected by hand.
+Until then, production runs with `ENV_CREDENTIALS_FOR=admins`. From stage 38 on, `SessionToolResolver` therefore still finds the owner's env credentials, and production never loses the owner's Notion, Spotify or Devin tools. After the migration is verified, stage 42 sets `ENV_CREDENTIALS_FOR=none` and removes those env vars from the production service. Nothing has to be reconnected by hand.
 
 ---
 
@@ -330,18 +351,18 @@ After verification, those env vars are removed from the production service. Noth
 
 Continuing the global numbering after stage 34:
 
-| Stage                                            | Work                                                                                                                                                                                                                                                                                                                                                                                  | Files                                                                                                                                                                                                                                                                                                        |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **35. Database & Encrypted Credential Store**    | `DATABASE_URL`, Drizzle schema + migrations for `users`, `connections`, `usage_counters`; `DatabaseModule`; `CredentialCipher` (AES-256-GCM, AAD, key versions); abstract `CredentialStore` + `UserDirectory` with Postgres and env-backed implementations; specs (round-trip, tamper/AAD mismatch, key rotation, env fallback).                                                      | `db/schema.ts`, `db/migrations/*`, `db/database.module.ts`, `credentials/credential-cipher.ts` (+spec), `credentials/credential-store.ts`, `credentials/postgres-credential-store.ts` (+spec), `credentials/env-credential-store.ts` (+spec), `users/user-directory.ts`, `config.service.ts`, `.env.example` |
-| **36. Google Sign-In & Backend Identity**        | Auth.js v5 Google provider, `/signin`, `/api/puding-token`; backend `AuthService` (`jose` verification, user upsert, status cache), `UserGuard`, `GET /me`; `ProxyGateway` authenticates with the Puding token (falls back to `AccessGuard` while `PUDING_AUTH_SECRET` is unset) and passes the user to `createSession`; `useLiveSession` fetches a token per connect; `UserMenu`.    | web: `auth.ts`, `app/api/auth/[...nextauth]/route.ts`, `app/api/puding-token/route.ts`, `app/signin/page.tsx`, `components/UserMenu.tsx`, `hooks/useLiveSession.ts`; server: `auth/auth.service.ts` (+spec), `auth/user.guard.ts`, `users/me.controller.ts`, `gateway/proxy.gateway.ts` (+spec)              |
-| **37. Sign-Up Modes, Access Requests & Admin**   | `SIGNUP_MODE`, `ADMIN_EMAILS`, `ALLOWED_EMAILS`; status on first sign-in; `POST /me/access-request`; admin routes (approve / reject / revoke, live-socket close on revoke); `AccessRequestScreen`, `InviteOnlyScreen`, `/admin` with pending badge and Spotify-allowlist reminder; CORS restricted to `WEB_ORIGIN`.                                                                   | `users/signup-policy.ts` (+spec), `users/admin.controller.ts` (+spec), `users/me.controller.ts`, `main.ts`, web: `app/admin/page.tsx`, `components/AccessRequestScreen.tsx`, `components/InviteOnlyScreen.tsx`, `globals.css`                                                                                |
-| **38. Per-User Tool Context**                    | `ToolContext.userId`; `GeminiTool.requires`; `SessionToolResolver` + "not connected" instruction line; `NotionClientProvider`, `SpotifyTokenManager`, per-user `DevinService` credentials and settings; per-user `DevinWatcher` loops and caps; Tavily daily cap; `MAX_SOCKETS_PER_USER`. Still served by `EnvCredentialStore` in local dev, so behaviour is unchanged for the owner. | `gemini/gemini-tool.interface.ts`, `gemini/session-tool-resolver.ts` (+spec), `gemini/gemini.session.ts`, `gemini/gemini.service.ts`, `gemini/gemini.module.ts`, `notion/*`, `spotify/*`, `devin/devin.service.ts`, `devin/devin-watcher.service.ts` (+specs), `search/tools/search-web.tool.ts`             |
-| **39. Settings Page & Devin Key**                | `/settings` with `ConnectionCard`s and Delete account; `useBackendApi`; `PUT /connections/devin` with live validation and `apk_` hint; `DELETE /connections/:provider`; `DELETE /me`; reconnect-on-focus for the voice page.                                                                                                                                                          | web: `app/settings/page.tsx`, `components/ConnectionCard.tsx`, `components/DevinKeyForm.tsx`, `hooks/useBackendApi.ts`; server: `connections/connections.controller.ts` (+spec), `connections/devin-connection.service.ts` (+spec)                                                                           |
-| **40. Spotify Connect per User**                 | `POST /connections/spotify/authorize` + public callback with signed `state`; refresh-token rotation; `invalid_grant` → reconnect state; "X of 5" slot notice and the "not on the app's user list" (403) message; remove `/spotify/login` operator routes.                                                                                                                             | `spotify/spotify-connect.controller.ts` (+spec), `spotify/spotify-token-manager.ts` (+spec), `spotify/spotify-auth.controller.ts` (removed), `connections/oauth-state.ts` (+spec), web: `components/ConnectionCard.tsx`                                                                                      |
-| **41. Notion Connect (Public Connection OAuth)** | Notion authorize + callback, token exchange and refresh via `NotionTokenManager`, workspace label/icon, `PUT /connections/notion/token` paste fallback; `/privacy` and `/terms` pages.                                                                                                                                                                                                | `notion/notion-connect.controller.ts` (+spec), `notion/notion-token-manager.ts` (+spec), `notion/notion-client.provider.ts`, web: `app/privacy/page.tsx`, `app/terms/page.tsx`, `components/ConnectionCard.tsx`                                                                                              |
-| **42. Owner Migration, Rollout & Docs**          | `migrate:owner` script; remove `PUDING_ACCESS_TOKEN`/`AccessTokenPrompt`; production env validation; `render.yaml` / preview env-group updates; `DEPLOYMENT.md` (Google OAuth client, Neon + `preview` branch, secrets, every redirect URI, Spotify Users Management, Notion public connection setup) and a multi-user verification checklist.                                        | `scripts/migrate-owner.ts`, `auth/access-guard.service.ts` (removed), web: `components/AccessTokenPrompt.tsx` (removed), `lib/accessToken.ts`, `render.yaml`, `DEPLOYMENT.md`, `.env.example`                                                                                                                |
+| Stage                                            | Work                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Files                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **35. Database & Encrypted Credential Store**    | `DATABASE_URL`, Drizzle schema + migrations for `users`, `connections`, `oauth_states`, `usage_counters`; `DatabaseModule`; `CredentialCipher` (AES-256-GCM, AAD, key versions); abstract `CredentialStore` + `UserDirectory` with Postgres, env-backed and layered (`ENV_CREDENTIALS_FOR`) implementations; specs (round-trip, tamper/AAD mismatch, key rotation, layered precedence and scopes).                                                     | `db/schema.ts`, `db/migrations/*`, `db/database.module.ts`, `credentials/credential-cipher.ts` (+spec), `credentials/credential-store.ts`, `credentials/postgres-credential-store.ts` (+spec), `credentials/env-credential-store.ts` (+spec), `users/user-directory.ts`, `config.service.ts`, `.env.example` |
+| **36. Google Sign-In & Backend Identity**        | Auth.js v5 Google provider, `/signin`, `/api/puding-token`; backend `AuthService` (`jose` verification, user upsert, status cache), `UserGuard` + `@AllowPending()`, `GET /me`; `ProxyGateway` authenticates with the Puding token (falls back to `AccessGuard` while `PUDING_AUTH_SECRET` is unset) and passes the user to `createSession`; `useLiveSession` fetches a token per connect; `UserMenu`.                                                 | web: `auth.ts`, `app/api/auth/[...nextauth]/route.ts`, `app/api/puding-token/route.ts`, `app/signin/page.tsx`, `components/UserMenu.tsx`, `hooks/useLiveSession.ts`; server: `auth/auth.service.ts` (+spec), `auth/user.guard.ts`, `users/me.controller.ts`, `gateway/proxy.gateway.ts` (+spec)              |
+| **37. Sign-Up Modes, Access Requests & Admin**   | `SIGNUP_MODE`, `ADMIN_EMAILS`, `ALLOWED_EMAILS`; status on first sign-in; `POST /me/access-request`; admin routes (approve / reject / revoke, live-socket close on revoke); `AccessRequestScreen`, `InviteOnlyScreen`, `/admin` with pending badge and Spotify-allowlist reminder; CORS restricted to `WEB_ORIGIN`.                                                                                                                                    | `users/signup-policy.ts` (+spec), `users/admin.controller.ts` (+spec), `users/me.controller.ts`, `main.ts`, web: `app/admin/page.tsx`, `components/AccessRequestScreen.tsx`, `components/InviteOnlyScreen.tsx`, `globals.css`                                                                                |
+| **38. Per-User Tool Context**                    | `ToolContext.userId`; `GeminiTool.requires`; `SessionToolResolver` + "not connected" instruction line; `NotionClientProvider`, `SpotifyTokenManager`, per-user `DevinService` credentials and settings; per-user `DevinWatcher` loops and caps; Tavily daily cap; `MAX_SOCKETS_PER_USER`. `ConnectionEvents` → `connections_changed` socket close. Owner keeps env credentials via `ENV_CREDENTIALS_FOR=admins`, so production behaviour is unchanged. | `gemini/gemini-tool.interface.ts`, `gemini/session-tool-resolver.ts` (+spec), `gemini/gemini.session.ts`, `gemini/gemini.service.ts`, `gemini/gemini.module.ts`, `notion/*`, `spotify/*`, `devin/devin.service.ts`, `devin/devin-watcher.service.ts` (+specs), `search/tools/search-web.tool.ts`             |
+| **39. Settings Page & Devin Key**                | `/settings` with `ConnectionCard`s and Delete account; `useBackendApi`; `PUT /connections/devin` with live validation and `apk_` hint; `DELETE /connections/:provider`; `DELETE /me`; reconnect-on-focus for the voice page.                                                                                                                                                                                                                           | web: `app/settings/page.tsx`, `components/ConnectionCard.tsx`, `components/DevinKeyForm.tsx`, `hooks/useBackendApi.ts`; server: `connections/connections.controller.ts` (+spec), `connections/devin-connection.service.ts` (+spec)                                                                           |
+| **40. Spotify Connect per User**                 | `POST /connections/spotify/authorize` + public callback with signed, single-use `state` (`oauth_states`); refresh-token rotation; `invalid_grant` → reconnect state; "X of 5" slot notice and the "not on the app's user list" (403) message; remove `/spotify/login` operator routes.                                                                                                                                                                 | `spotify/spotify-connect.controller.ts` (+spec), `spotify/spotify-token-manager.ts` (+spec), `spotify/spotify-auth.controller.ts` (removed), `connections/oauth-state.ts` (+spec), web: `components/ConnectionCard.tsx`                                                                                      |
+| **41. Notion Connect (Public Connection OAuth)** | Notion authorize + callback, token exchange and refresh via `NotionTokenManager`, workspace label/icon, `PUT /connections/notion/token` paste fallback; `/privacy` and `/terms` pages.                                                                                                                                                                                                                                                                 | `notion/notion-connect.controller.ts` (+spec), `notion/notion-token-manager.ts` (+spec), `notion/notion-client.provider.ts`, web: `app/privacy/page.tsx`, `app/terms/page.tsx`, `components/ConnectionCard.tsx`                                                                                              |
+| **42. Owner Migration, Rollout & Docs**          | `migrate:owner` script, then `ENV_CREDENTIALS_FOR=none` and drop the owner's env credentials in production; remove `PUDING_ACCESS_TOKEN`/`AccessTokenPrompt`; production env validation; `render.yaml` / preview env-group updates; `DEPLOYMENT.md` (Google OAuth client, Neon + `preview` branch, secrets, every redirect URI, Spotify Users Management, Notion public connection setup) and a multi-user verification checklist.                     | `scripts/migrate-owner.ts`, `auth/access-guard.service.ts` (removed), web: `components/AccessTokenPrompt.tsx` (removed), `lib/accessToken.ts`, `render.yaml`, `DEPLOYMENT.md`, `.env.example`                                                                                                                |
 
-Each stage is a separate `feature/stage-<n>-<slug>` branch/PR per the plan-driven workflow, with `pnpm run build`, `pnpm lint` and `pnpm test` passing before commit. Through stage 41, production keeps running on the env credentials and the access token. The switch happens in stage 42.
+Each stage is a separate `feature/stage-<n>-<slug>` branch/PR per the plan-driven workflow, with `pnpm run build`, `pnpm lint` and `pnpm test` passing before commit. Through stage 41, production keeps the owner on env credentials (`ENV_CREDENTIALS_FOR=admins`), and keeps the access token until Google sign-in ships in stage 36. Stage 42 completes the switch.
 
 **New dependencies:**
 
@@ -357,7 +378,9 @@ Each stage is a separate `feature/stage-<n>-<slug>` branch/PR per the plan-drive
    - cipher round-trip, tamper and AAD mismatch, key rotation;
    - `SignupPolicy` for every mode × admin/allowlisted/other;
    - `AuthService` (expired, bad `aud`, wrong signature, pending, rejected, revoked within 30s);
-   - OAuth `state` (forged, expired, replayed for another user);
+   - OAuth `state` (forged, expired, replayed once consumed, other provider, other user);
+   - `UserGuard` (`pending` allowed only on `@AllowPending()` routes);
+   - disconnect closes the user's live sockets and the tool then refuses;
    - `SessionToolResolver` (only connected providers; error-state provider excluded; "not connected" line);
    - per-user `DevinWatcher` (two users never see each other's sessions);
    - Tavily cap; Devin key validation (`apk_` rejected).
@@ -370,7 +393,7 @@ Each stage is a separate `feature/stage-<n>-<slug>` branch/PR per the plan-drive
    - Paste a `cog_` PAT; an invalid key is rejected inline. "Ask Devin to plan …" creates the session in that user's org.
    - Revoke a user and their live socket closes within 30s.
 5. **Owner migration:** after `migrate:owner` and removing the env credentials, the owner's existing Notion, Spotify and Devin flows behave exactly as before.
-6. **Latency:** credential lookup + decrypt happens once at session setup and is cached for the session, so time-to-first-audio stays under 500ms. A per-call refresh only happens when a provider token has expired.
+6. **Latency:** credential lookup + decrypt is served from the in-process cache (invalidated on `save`/`delete`), and it runs off the audio path at setup and tool time, so time-to-first-audio stays under 500ms. A per-call refresh only happens when a provider token has expired.
 
 ---
 
