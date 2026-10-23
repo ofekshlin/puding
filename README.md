@@ -150,6 +150,21 @@ Lets the user plan, develop, and manage Devin sessions by voice from Puding — 
 
 > Requires a Devin Personal Access Token and organization ID. Devin sessions consume ACUs; every Puding-created session is capped by `DEVIN_MAX_ACU_PER_SESSION`, and Devin tools are disabled in PR previews by default.
 
+### Phase 8: Accounts, Sign-Up & Per-User Connections
+
+Turns Puding into a small multi-user app: Google sign-in with an allowlist / request-access / open sign-up mode and an admin approval page, and per-user Spotify (OAuth), Notion (OAuth public connection, with a paste-a-token fallback) and Devin (Personal Access Token) connections, stored encrypted in Postgres. Tavily and Gemini stay shared server keys. Detailed design: `docs/design/phase_8_design.md`.
+
+- [ ] **35. Database & Encrypted Credential Store:** Add Neon Postgres (`DATABASE_URL`) with Drizzle schema and migrations for `users`, `connections` and `usage_counters`; implement `CredentialCipher` (AES-256-GCM with per-row AAD and versioned `CREDENTIALS_ENCRYPTION_KEYS`) and the abstract `CredentialStore` / `UserDirectory` tokens with Postgres and env-backed (local dev / preview) implementations.
+- [ ] **36. Google Sign-In & Backend Identity:** Add Auth.js v5 with Google on the web app, a `/api/puding-token` route minting 5-minute HS256 tokens signed with `PUDING_AUTH_SECRET`, and backend `AuthService` + `UserGuard` verifying them on the WebSocket upgrade and REST calls; expose `GET /me` and pass the authenticated user into each live session.
+- [ ] **37. Sign-Up Modes, Access Requests & Admin:** Add `SIGNUP_MODE` (`allowlist` / `request` / `open`), `ADMIN_EMAILS` and `ALLOWED_EMAILS`, a "Request access" flow with an optional note, and an `/admin` page to approve, reject and revoke users (closing revoked users' live sockets), with a pending badge and a Spotify Users Management reminder.
+- [ ] **38. Per-User Tool Context:** Add `userId` to `ToolContext` and `requires` to `GeminiTool`; register only the tools for providers the user connected (plus a "not connected" instruction line) via `SessionToolResolver`; make Notion, Spotify and Devin services resolve credentials per user, run `DevinWatcher` per user, and add the Tavily daily cap and per-user socket limit.
+- [ ] **39. Settings Page & Devin Key:** Add `/settings` with a connection card per provider, a Devin form (PAT, org ID, default repo, aliases) validated live against the Devin API, disconnect and delete-account endpoints, and reconnect-on-focus so new connections reach the voice session.
+- [ ] **40. Spotify Connect per User:** Replace the operator-only `/spotify/login` flow with per-user `POST /connections/spotify/authorize` and a public callback using a signed `state`, store and rotate refresh tokens per user, surface reconnect and "X of 5 Spotify users" states.
+- [ ] **41. Notion Connect (Public Connection OAuth):** Add the Notion public-connection authorize/callback flow with access + refresh tokens, workspace labels, a paste-a-token fallback, and the `/privacy` and `/terms` pages Notion requires.
+- [ ] **42. Owner Migration, Rollout & Docs:** Add a `migrate:owner` script moving today's env credentials onto the first admin account, remove `PUDING_ACCESS_TOKEN` and `AccessTokenPrompt`, enforce production env validation, update `render.yaml` / preview secrets, and document Google, Neon, Spotify and Notion setup plus a multi-user verification checklist in `DEPLOYMENT.md`.
+
+> Spotify apps in development mode are limited to 5 users, each added by hand in the Spotify dashboard. PR previews keep using shared env credentials for Spotify and Notion because OAuth redirect URIs cannot follow per-PR hostnames.
+
 ---
 
 ## Future Features
