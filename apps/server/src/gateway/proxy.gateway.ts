@@ -19,6 +19,7 @@ import {
   readQueryToken,
 } from "../auth/access-guard.service";
 import { AuthFailureReason, AuthService } from "../auth/auth.service";
+import { UserAccessEvents } from "../auth/user-access-events";
 
 /** Lets the "unauthorized" message reach the client before the close frame. */
 const UNAUTHORIZED_CLOSE_DELAY_MS = 250;
@@ -27,6 +28,7 @@ const UNAUTHORIZED_CLOSE_DELAY_MS = 250;
 export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(ProxyGateway.name);
   private readonly sessions = new Map<WebSocket, LiveSession>();
+  private readonly clientUsers = new Map<WebSocket, string>();
 
   constructor(
     @Inject(LiveSessionService)
@@ -34,7 +36,20 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @Inject(ConfigService) private readonly configService: ConfigService,
     @Inject(SessionTracker) private readonly sessionTracker: SessionTracker,
     @Inject(AuthService) private readonly authService: AuthService,
-  ) {}
+    @Inject(UserAccessEvents) accessEvents: UserAccessEvents,
+  ) {
+    accessEvents.onRevoked((userId) => this.disconnectUser(userId));
+  }
+
+  /** Closes every live socket of a user whose access was revoked. */
+  public disconnectUser(userId: string): void {
+    for (const [client, owner] of this.clientUsers) {
+      if (owner !== userId) continue;
+      this.clientUsers.delete(client);
+      const sessionId = this.sessions.get(client)?.sessionId ?? "unknown";
+      this.reject(client, sessionId, undefined, "rejected");
+    }
+  }
 
   /**
    * Fires when a new client connects to the WebSocket proxy gateway.
@@ -98,6 +113,7 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       result.user,
     );
     this.sessions.set(client, session);
+    this.clientUsers.set(client, result.user.id);
 
     // Bind event listener directly to socket to support raw PCM binary streaming
     client.on("message", (data: WebSocket.Data, isBinary: boolean) => {
@@ -131,6 +147,7 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * Fires when a client connection closes.
    */
   public handleDisconnect(client: WebSocket): void {
+    this.clientUsers.delete(client);
     const session = this.sessions.get(client);
     if (session) {
       this.sessionTracker.disconnectSession(session.sessionId);

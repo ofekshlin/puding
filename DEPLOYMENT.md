@@ -107,6 +107,9 @@ In the **Environment Variables** section on Render, add:
 | `PUDING_ACCESS_TOKEN`         | Long random secret clients must enter once (e.g. `openssl rand -hex 32`)           | **Yes** (open to anyone without it) |
 | `PUDING_AUTH_SECRET`          | Shared with Vercel; ≥32 bytes (`openssl rand -base64 32`). Turns on Google sign-in | With Google sign-in                 |
 | `ADMIN_EMAILS`                | Comma-separated emails that sign in as approved admins (e.g. your Google email)    | With Google sign-in                 |
+| `SIGNUP_MODE`                 | `allowlist`, `request` (default; approve on `/admin`) or `open`                    | With Google sign-in                 |
+| `ALLOWED_EMAILS`              | Comma-separated emails approved on sign-in in `allowlist` mode                     | With `SIGNUP_MODE=allowlist`        |
+| `WEB_ORIGIN`                  | Web origins allowed by CORS, e.g. `https://puding.ofekshlinger.com,https://puding-web.vercel.app` | With Google sign-in                 |
 | `DEVIN_API_KEY`               | Devin personal access token (`cog_...`) for voice control of Devin                 | Optional                            |
 | `DEVIN_ORG_ID`                | Devin organization ID (`org-...`); required together with `DEVIN_API_KEY`          | Optional                            |
 | `DEVIN_DEFAULT_REPO`          | Repo Devin works on when none is named (e.g. `ofekshlin/puding`)                   | Optional                            |

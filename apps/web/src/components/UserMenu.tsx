@@ -7,7 +7,18 @@ export interface SignedInUser {
   image?: string | null;
 }
 
-export const UserMenu: React.FC<{ user: SignedInUser }> = ({ user }) => {
+export interface UserMenuProps {
+  user: SignedInUser;
+  /** Admins get a link to `/admin`, badged with waiting requests. */
+  isAdmin?: boolean;
+  pendingRequests?: number;
+}
+
+export const UserMenu: React.FC<UserMenuProps> = ({
+  user,
+  isAdmin,
+  pendingRequests = 0,
+}) => {
   const label = user.name || user.email || "Signed in";
   return (
     <div className="user-menu">

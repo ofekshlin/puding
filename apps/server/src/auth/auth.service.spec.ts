@@ -1,11 +1,12 @@
 import { eq } from "drizzle-orm";
 import { SignJWT } from "jose";
-import { ConfigService } from "../config/config.service";
+import { ConfigService, SignupMode } from "../config/config.service";
 import type { DatabaseConnection } from "../database/database";
 import { users as usersTable } from "../database/schema";
 import { createTestDatabase } from "../database/test-database";
 import { LOCAL_USER } from "../users/env-user-directory";
 import { PostgresUserDirectory } from "../users/postgres-user-directory";
+import { SignupPolicy } from "../users/signup-policy";
 import { AccessGuard } from "./access-guard.service";
 import { AuthService, PUDING_TOKEN_AUDIENCE } from "./auth.service";
 
@@ -15,10 +16,14 @@ function configWith(values: {
   secret?: string;
   admins?: string[];
   accessToken?: string;
+  mode?: SignupMode;
+  allowed?: string[];
 }): ConfigService {
   return {
     getPudingAuthSecret: () => values.secret,
     getAdminEmails: () => values.admins ?? [],
+    getSignupMode: () => values.mode ?? "request",
+    getAllowedEmails: () => values.allowed ?? [],
     getAccessToken: () => values.accessToken,
   } as unknown as ConfigService;
 }
@@ -55,7 +60,12 @@ describe("AuthService", () => {
 
   const service = (values: Parameters<typeof configWith>[0]) => {
     const config = configWith(values);
-    return new AuthService(config, directory, new AccessGuard(config));
+    return new AuthService(
+      config,
+      directory,
+      new AccessGuard(config),
+      new SignupPolicy(config),
+    );
   };
 
   describe("without PUDING_AUTH_SECRET (legacy access token)", () => {
@@ -145,7 +155,7 @@ describe("AuthService", () => {
     });
 
     it("sees a status change after at most 30 seconds, or at once after forget()", async () => {
-      const auth = service({ secret: SECRET, admins: ["revoked@x.dev"] });
+      const auth = service({ secret: SECRET, mode: "open" });
       const revoked = await token({ sub: "g-revoked", email: "revoked@x.dev" });
       const first = await auth.authenticate(revoked);
       if (!first.ok) throw new Error("expected approval");
