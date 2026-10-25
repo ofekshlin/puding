@@ -8,6 +8,7 @@ import {
 import { SessionTracker } from "../session/session-tracker.interface";
 import { GeminiTool } from "./gemini-tool.interface";
 import { DevinWatcher } from "../devin/devin-watcher.service";
+import { PudingUser } from "../users/user-directory";
 
 @Injectable()
 export class GeminiService extends LiveSessionService {
@@ -27,13 +28,17 @@ export class GeminiService extends LiveSessionService {
    * @param clientWs WebSocket connection from the client.
    * @param apiKey The Google Gemini API key.
    * @param sessionId A unique identifier for the session.
+   * @param user The authenticated Puding user who owns the session.
    */
   public override createSession(
     clientWs: WebSocket,
     apiKey: string,
     sessionId: string,
+    user: PudingUser,
   ): LiveSession {
-    this.logger.log(`Spawning Gemini session for client [${sessionId}]`);
+    this.logger.log(
+      `Spawning Gemini session for client [${sessionId}] (user ${user.id})`,
+    );
     return new GeminiSession(
       clientWs,
       apiKey,

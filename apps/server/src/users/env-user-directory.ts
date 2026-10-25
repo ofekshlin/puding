@@ -13,7 +13,10 @@ export const LOCAL_USER: Readonly<PudingUser> = Object.freeze({
   status: "approved",
 });
 
-/** Without a database, everyone is the single approved `local` admin. */
+/**
+ * Without a database, admins sign in as the single `local` user that owns the
+ * env credentials. Anyone else gets an unsaved account with the given defaults.
+ */
 export class EnvUserDirectory extends UserDirectory {
   public async findById(id: string): Promise<PudingUser | null> {
     return id === LOCAL_USER.id ? { ...LOCAL_USER } : null;
@@ -24,9 +27,18 @@ export class EnvUserDirectory extends UserDirectory {
   }
 
   public async upsertFromGoogle(
-    _profile: GoogleProfile,
-    _defaults: NewUserDefaults,
+    profile: GoogleProfile,
+    defaults: NewUserDefaults,
   ): Promise<PudingUser> {
-    return { ...LOCAL_USER };
+    if (defaults.role === "admin" && defaults.status === "approved") {
+      return { ...LOCAL_USER };
+    }
+    return {
+      id: `google:${profile.googleSub}`,
+      email: profile.email.toLowerCase(),
+      name: profile.name,
+      pictureUrl: profile.pictureUrl,
+      ...defaults,
+    };
   }
 }

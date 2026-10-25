@@ -32,6 +32,8 @@ export class ConfigService {
   private readonly databaseUrl?: string;
   private readonly credentialsEncryptionKeys?: string;
   private readonly envCredentialsScope: EnvCredentialScope;
+  private readonly pudingAuthSecret?: string;
+  private readonly adminEmails: string[];
 
   // Define required environment variables here for easy extension
   private readonly requiredEnvVars = ["GEMINI_API_KEY", "NOTION_TOKEN"];
@@ -82,6 +84,15 @@ export class ConfigService {
     this.envCredentialsScope = this.parseEnvCredentialsScope(
       process.env.ENV_CREDENTIALS_FOR,
     );
+    this.pudingAuthSecret = process.env.PUDING_AUTH_SECRET || undefined;
+    this.adminEmails = ConfigService.parseEmails(process.env.ADMIN_EMAILS);
+  }
+
+  private static parseEmails(raw: string | undefined): string[] {
+    return (raw ?? "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
   }
 
   private parseEnvCredentialsScope(
@@ -286,5 +297,19 @@ export class ConfigService {
    */
   public getEnvCredentialsScope(): EnvCredentialScope {
     return this.envCredentialsScope;
+  }
+
+  /**
+   * Retrieves the secret shared with the web app for signing Puding tokens; unset keeps the legacy access token.
+   */
+  public getPudingAuthSecret(): string | undefined {
+    return this.pudingAuthSecret;
+  }
+
+  /**
+   * Retrieves the lowercase emails that are always approved admins.
+   */
+  public getAdminEmails(): string[] {
+    return [...this.adminEmails];
   }
 }
