@@ -1176,6 +1176,12 @@ body {
   white-space: nowrap;
 }
 
+.title .badge {
+  -webkit-text-fill-color: var(--text-primary);
+  font-size: 1rem;
+  vertical-align: middle;
+}
+
 .admin-link {
   display: inline-flex;
   align-items: center;

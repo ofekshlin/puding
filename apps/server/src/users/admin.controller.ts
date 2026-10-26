@@ -65,7 +65,9 @@ export class AdminController {
     if (!target) throw new NotFoundException({ reason: "unknown_user" });
     if (
       status === "rejected" &&
-      (target.id === admin.id || this.policy.isAdminEmail(target.email))
+      (target.id === admin.id ||
+        target.role === "admin" ||
+        this.policy.isAdminEmail(target.email))
     ) {
       throw new BadRequestException({ reason: "cannot_reject_admin" });
     }

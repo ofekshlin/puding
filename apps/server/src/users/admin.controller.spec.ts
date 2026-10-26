@@ -88,6 +88,13 @@ describe("AdminController", () => {
     await expect(controller.reject(admin, admin.id)).rejects.toThrow(
       BadRequestException,
     );
+    const otherAdmin = await users.upsertFromGoogle(
+      { googleSub: "g-other-admin", email: "other-admin@x.dev" },
+      { role: "admin", status: "approved" },
+    );
+    await expect(controller.reject(admin, otherAdmin.id)).rejects.toThrow(
+      BadRequestException,
+    );
     await expect(
       controller.approve(admin, "00000000-0000-4000-8000-000000000000"),
     ).rejects.toThrow(NotFoundException);
