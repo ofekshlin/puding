@@ -38,6 +38,19 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       <span className="user-menu-name" title={user.email ?? undefined}>
         {label}
       </span>
+      {isAdmin && (
+        <a href="/admin" className="btn btn-secondary btn-sm admin-link">
+          Admin
+          {pendingRequests > 0 && (
+            <span
+              className="badge"
+              aria-label={`${pendingRequests} waiting requests`}
+            >
+              {pendingRequests}
+            </span>
+          )}
+        </a>
+      )}
       <form action={signOutOfPuding}>
         <button type="submit" className="btn btn-secondary btn-sm">
           Sign out
