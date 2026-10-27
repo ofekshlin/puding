@@ -949,6 +949,35 @@ body {
   .logs-window {
     height: 120px;
   }
+
+  /* The voice screen fills the viewport; the chat window takes what is left */
+  .voice-card {
+    min-height: calc(100vh - 1.5rem);
+    min-height: calc(100dvh - 1.5rem - env(safe-area-inset-bottom));
+  }
+
+  .voice-card .chat-window-container {
+    flex: 1 1 auto;
+    height: 0;
+    min-height: 140px;
+    max-height: none;
+  }
+}
+
+@media (max-width: 600px) and (max-height: 700px) {
+  .voice-card {
+    gap: 0.625rem;
+  }
+
+  .voice-card .visualizer-orb {
+    width: 96px;
+    height: 96px;
+  }
+
+  .voice-card .orb-inner {
+    width: 60px;
+    height: 60px;
+  }
 }
 
 .access-token-prompt {
@@ -1144,11 +1173,77 @@ body {
 
 .user-menu {
   width: 100%;
+  position: relative;
+  z-index: 10;
+}
+
+.user-menu-trigger {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 0.5rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  padding: 0.25rem 0.75rem 0.25rem 0.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  list-style: none;
+}
+
+.user-menu-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.user-menu-chevron {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  transition: transform 0.2s ease;
+}
+
+.user-menu[open] .user-menu-chevron {
+  transform: rotate(180deg);
+}
+
+.user-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: min(260px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #14141c;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  text-align: left;
+}
+
+.user-menu-panel form,
+.user-menu-panel .btn {
+  width: 100%;
+}
+
+.user-menu-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
   min-width: 0;
+  font-size: 0.9rem;
+}
+
+.user-menu-status {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.user-menu-email {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
 }
 
 .user-avatar {
@@ -1168,7 +1263,7 @@ body {
 }
 
 .user-menu-name {
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: 0.85rem;
   min-width: 0;
   overflow: hidden;
