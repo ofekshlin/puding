@@ -1,15 +1,27 @@
+import { CredentialStore } from "../credentials/credential-store";
+import { EnvCredentialStore } from "../credentials/env-credential-store";
+import { ConnectionEvents } from "../credentials/connection-events";
 import { Test, TestingModule } from "@nestjs/testing";
 import { NotionService } from "./notion.service";
 import { ConfigService } from "../config/config.service";
 
 describe("NotionService", () => {
   let service: NotionService;
+  let mockCredentials: any;
   let mockConfigService: jest.Mocked<ConfigService>;
   let mockClient: any;
 
   beforeEach(async () => {
     mockConfigService = {
       getNotionToken: jest.fn().mockReturnValue("dummy-token"),
+    } as any;
+    mockCredentials = {
+      get: jest.fn().mockResolvedValue({
+        provider: "notion",
+        kind: "static_token",
+        secret: { accessToken: "dummy-token" },
+        settings: {},
+      }),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -19,6 +31,8 @@ describe("NotionService", () => {
           provide: ConfigService,
           useValue: mockConfigService,
         },
+        { provide: CredentialStore, useValue: mockCredentials },
+        ConnectionEvents,
       ],
     }).compile();
 
@@ -41,16 +55,19 @@ describe("NotionService", () => {
         },
       },
     };
-    (service as any).client = mockClient;
+    jest.spyOn(service as any, "clientFor").mockResolvedValue(mockClient);
   });
 
   it("should be defined", () => {
     expect(service).toBeDefined();
   });
 
-  it("should throw error if token is missing on construction", async () => {
-    mockConfigService.getNotionToken.mockReturnValueOnce("");
-    expect(() => new NotionService(mockConfigService)).toThrow("NOTION_TOKEN");
+  it("tells the user to connect Notion when they have no credential", async () => {
+    mockCredentials.get.mockResolvedValueOnce(null);
+    jest.restoreAllMocks();
+    await expect(service.resolveId("u1", "Ideas")).rejects.toThrow(
+      "Notion isn't connected",
+    );
   });
 
   it("should resolve simple page title", async () => {
@@ -69,7 +86,7 @@ describe("NotionService", () => {
       ],
     });
 
-    const id = await service.resolveId("Music");
+    const id = await service.resolveId("u1", "Music");
     expect(id).toBe("target-page-id");
     expect(mockClient.search).toHaveBeenCalledWith({ query: "Music" });
   });
@@ -114,7 +131,7 @@ describe("NotionService", () => {
       },
     );
 
-    const id = await service.resolveId("Busking List under Music");
+    const id = await service.resolveId("u1", "Busking List under Music");
     expect(id).toBe("child-busking-id");
   });
 
@@ -139,7 +156,7 @@ describe("NotionService", () => {
       ],
     });
 
-    const result = await service.readPage("some-page-id");
+    const result = await service.readPage("u1", "some-page-id");
     expect(result.title).toBe("Music Page");
     expect(result.content).toBe("First block content");
   });
@@ -154,6 +171,7 @@ describe("NotionService", () => {
     });
 
     const result = await service.createPage(
+      "u1",
       "parent-page-id",
       "New Page Title",
       "New content",
@@ -191,7 +209,7 @@ describe("NotionService", () => {
 
     mockClient.blocks.children.append.mockResolvedValue({});
 
-    const result = await service.writePage("page-id", "Appended line");
+    const result = await service.writePage("u1", "page-id", "Appended line");
     expect(result.id).toBe("page-id");
     expect(result.title).toBe("Target Page");
     expect(mockClient.blocks.children.append).toHaveBeenCalledWith({
@@ -210,16 +228,21 @@ describe("NotionService", () => {
 
   it("should resolve real page title 'Ideas' using Notion API", async () => {
     const realConfigService = new ConfigService();
-    const realService = new NotionService(realConfigService);
+    const realService = new NotionService(
+      new EnvCredentialStore(realConfigService),
+      new ConnectionEvents(),
+    );
 
     // List all shared pages first to debug
-    const searchResponse = await (realService as any).client.search({});
+    const searchResponse = await (
+      await (realService as any).clientFor("local")
+    ).search({});
     const titles = searchResponse.results.map((r: any) =>
       (realService as any).extractTitle(r),
     );
     console.log(`[Integration Test] Shared pages in Notion workspace:`, titles);
 
-    const id = await realService.resolveId("Ideas");
+    const id = await realService.resolveId("u1", "Ideas");
     console.log(`[Integration Test] Resolved 'Ideas' to ID: ${id}`);
     expect(id).toBeDefined();
     expect(id.replace(/-/g, "")).toHaveLength(32);

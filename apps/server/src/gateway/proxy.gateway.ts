@@ -11,7 +11,7 @@ import {
 } from "../session/live-session.service";
 import { ConfigService } from "../config/config.service";
 import { Logger, Inject } from "@nestjs/common";
-import { ClientMessage } from "../types";
+import { ClientMessage, ServerMessage } from "../types";
 import { randomUUID } from "crypto";
 import { SessionTracker } from "../session/session-tracker.interface";
 import {
@@ -20,6 +20,8 @@ import {
 } from "../auth/access-guard.service";
 import { AuthFailureReason, AuthService } from "../auth/auth.service";
 import { UserAccessEvents } from "../auth/user-access-events";
+import { ConnectionEvents } from "../credentials/connection-events";
+import { Provider } from "../credentials/credential.types";
 
 /** Lets the "unauthorized" message reach the client before the close frame. */
 const UNAUTHORIZED_CLOSE_DELAY_MS = 250;
@@ -37,8 +39,41 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @Inject(SessionTracker) private readonly sessionTracker: SessionTracker,
     @Inject(AuthService) private readonly authService: AuthService,
     @Inject(UserAccessEvents) accessEvents: UserAccessEvents,
+    @Inject(ConnectionEvents) connectionEvents: ConnectionEvents,
   ) {
     accessEvents.onRevoked((userId) => this.disconnectUser(userId));
+    connectionEvents.onChanged((userId, provider, change) => {
+      if (change !== "errored") this.reconnectUser(userId, provider);
+    });
+  }
+
+  /**
+   * A session's tool list is fixed at setup, so a changed connection closes
+   * the user's sockets and the client reconnects with the new tools.
+   */
+  public reconnectUser(userId: string, provider: Provider): void {
+    for (const [client, owner] of this.clientUsers) {
+      if (owner !== userId) continue;
+      this.send(client, { type: "connections_changed", provider });
+      setTimeout(
+        () => client.close(1012, "Connections changed"),
+        UNAUTHORIZED_CLOSE_DELAY_MS,
+      );
+    }
+  }
+
+  private send(client: WebSocket, message: ServerMessage): void {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(message));
+    }
+  }
+
+  private socketsOf(userId: string): number {
+    let count = 0;
+    for (const owner of this.clientUsers.values()) {
+      if (owner === userId) count++;
+    }
+    return count;
   }
 
   /** Closes every live socket of a user whose access was revoked. */
@@ -88,6 +123,19 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.readyState === WebSocket.CLOSING ||
       client.readyState === WebSocket.CLOSED
     ) {
+      return;
+    }
+
+    const maxSockets = this.configService.getMaxSocketsPerUser();
+    if (this.socketsOf(result.user.id) >= maxSockets) {
+      this.logger.warn(
+        `Rejecting connection [${sessionId}]: user ${result.user.id} already has ${maxSockets} sockets.`,
+      );
+      this.send(client, { type: "too_many_sessions", limit: maxSockets });
+      setTimeout(
+        () => client.close(1008, "Too many sessions"),
+        UNAUTHORIZED_CLOSE_DELAY_MS,
+      );
       return;
     }
 

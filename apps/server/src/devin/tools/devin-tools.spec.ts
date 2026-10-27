@@ -25,7 +25,7 @@ function session(
 }
 
 describe("Devin tools", () => {
-  const ctx = { sessionId: "conv-1" };
+  const ctx = { sessionId: "conv-1", userId: "u1" };
   const darkMode = session("devin-dark", "Add dark mode toggle");
 
   let agent: jest.Mocked<CodingAgentService>;
@@ -96,7 +96,7 @@ describe("Devin tools", () => {
         },
         ctx,
       );
-      expect(agent.startSession).toHaveBeenCalledWith({
+      expect(agent.startSession).toHaveBeenCalledWith("u1", {
         task: "Add dark mode toggle",
         intent: "build",
         repo: "site",
@@ -181,6 +181,7 @@ describe("Devin tools", () => {
       ctx,
     );
     expect(agent.sendMessage).toHaveBeenCalledWith(
+      "u1",
       "devin-dark",
       "Go ahead, but skip the settings page",
     );
@@ -201,7 +202,7 @@ describe("Devin tools", () => {
       { session: "devin-dark", confirmed: true },
       ctx,
     );
-    expect(agent.stopSession).toHaveBeenCalledWith("devin-dark");
+    expect(agent.stopSession).toHaveBeenCalledWith("u1", "devin-dark");
     expect(second.output).toEqual({
       status: "stopped",
       title: "Add dark mode toggle",

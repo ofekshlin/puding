@@ -1,29 +1,50 @@
 import { Injectable, Logger, Inject } from "@nestjs/common";
 import { Client } from "@notionhq/client";
-import { ConfigService } from "../config/config.service";
+import { ConnectionEvents } from "../credentials/connection-events";
+import { CredentialStore } from "../credentials/credential-store";
 
 @Injectable()
 export class NotionService {
   private readonly logger = new Logger(NotionService.name);
-  private readonly client: Client;
+  private readonly clients = new Map<
+    string,
+    { token: string; client: Client }
+  >();
 
   constructor(
-    @Inject(ConfigService) private readonly configService: ConfigService,
+    @Inject(CredentialStore) private readonly credentials: CredentialStore,
+    @Inject(ConnectionEvents) connectionEvents: ConnectionEvents,
   ) {
-    const token = this.configService.getNotionToken();
-    if (!token) {
+    connectionEvents.onChanged((userId, provider) => {
+      if (provider === "notion") this.forget(userId);
+    });
+  }
+
+  /** The Notion client for a user's own connection, cached per token. */
+  private async clientFor(userId: string): Promise<Client> {
+    const credential = await this.credentials.get(userId, "notion");
+    if (!credential) {
       throw new Error(
-        "NOTION_TOKEN is not defined in the environment. Notion integration requires a valid token.",
+        "Notion isn't connected for this user. They can connect it in Puding's Settings.",
       );
     }
-    this.client = new Client({ auth: token });
-    this.logger.log("Notion client initialized successfully.");
+    const token = credential.secret.accessToken;
+    const cached = this.clients.get(userId);
+    if (cached?.token === token) return cached.client;
+    const client = new Client({ auth: token });
+    this.clients.set(userId, { token, client });
+    return client;
+  }
+
+  /** Drops a user's cached client, e.g. after their connection changed. */
+  public forget(userId: string): void {
+    this.clients.delete(userId);
   }
 
   /**
    * Resolves a human-readable page/database title or path to a Notion ID.
    */
-  public async resolveId(identifier: string): Promise<string> {
+  public async resolveId(userId: string, identifier: string): Promise<string> {
     const cleanId = identifier.trim();
     this.logger.log(`Resolving identifier to Notion ID: "${cleanId}"`);
 
@@ -42,12 +63,14 @@ export class NotionService {
     }
 
     if (parentTitle) {
-      const parentId = await this.resolveId(parentTitle);
+      const parentId = await this.resolveId(userId, parentTitle);
       this.logger.log(
         `Searching for "${targetTitle}" under parent ID: ${parentId}`,
       );
 
-      const searchResponse = await this.client.search({ query: targetTitle });
+      const searchResponse = await (
+        await this.clientFor(userId)
+      ).search({ query: targetTitle });
 
       for (const result of searchResponse.results as any[]) {
         const resultTitle = this.extractTitle(result);
@@ -65,7 +88,9 @@ export class NotionService {
         `Could not find page "${targetTitle}" under parent "${parentTitle}".`,
       );
     } else {
-      const searchResponse = await this.client.search({ query: targetTitle });
+      const searchResponse = await (
+        await this.clientFor(userId)
+      ).search({ query: targetTitle });
       if (searchResponse.results.length === 0) {
         throw new Error(
           `Could not find Notion page or database matching: "${targetTitle}"`,
@@ -110,13 +135,16 @@ export class NotionService {
    * Returns a markdown or structured text summary of the page content.
    */
   public async readPage(
+    userId: string,
     pageId: string,
   ): Promise<{ title: string; content: string; summary: string }> {
     this.logger.log(`Reading Notion page: ${pageId}`);
 
     try {
       // 1. Retrieve page metadata to get the title
-      const pageResponse = (await this.client.pages.retrieve({
+      const pageResponse = (await (
+        await this.clientFor(userId)
+      ).pages.retrieve({
         page_id: pageId,
       })) as any;
       const titleProp = Object.values(pageResponse.properties).find(
@@ -125,7 +153,9 @@ export class NotionService {
       const title = titleProp?.title?.[0]?.plain_text || "Untitled Page";
 
       // 2. Retrieve page blocks content
-      const blocksResponse = await this.client.blocks.children.list({
+      const blocksResponse = await (
+        await this.clientFor(userId)
+      ).blocks.children.list({
         block_id: pageId,
       });
       let content = "";
@@ -157,6 +187,7 @@ export class NotionService {
    * Creates a new page under a parent page or database.
    */
   public async createPage(
+    userId: string,
     parentId: string,
     title: string,
     content: string,
@@ -169,14 +200,18 @@ export class NotionService {
       // Determine if parent is database or page
       let parentObj: any;
       try {
-        await this.client.databases.retrieve({ database_id: parentId });
+        await (
+          await this.clientFor(userId)
+        ).databases.retrieve({ database_id: parentId });
         parentObj = { database_id: parentId };
       } catch {
         parentObj = { page_id: parentId };
       }
 
       // Create page with title
-      const response = (await this.client.pages.create({
+      const response = (await (
+        await this.clientFor(userId)
+      ).pages.create({
         parent: parentObj,
         properties: {
           title: {
@@ -217,6 +252,7 @@ export class NotionService {
    * Appends text blocks (content) to an existing page.
    */
   public async writePage(
+    userId: string,
     pageId: string,
     content: string,
   ): Promise<{ id: string; title: string; summary: string }> {
@@ -224,7 +260,9 @@ export class NotionService {
 
     try {
       // 1. Retrieve page metadata to get the title
-      const pageResponse = (await this.client.pages.retrieve({
+      const pageResponse = (await (
+        await this.clientFor(userId)
+      ).pages.retrieve({
         page_id: pageId,
       })) as any;
       const titleProp = Object.values(pageResponse.properties).find(
@@ -233,7 +271,9 @@ export class NotionService {
       const title = titleProp?.title?.[0]?.plain_text || "Untitled Page";
 
       // 2. Append block content
-      await this.client.blocks.children.append({
+      await (
+        await this.clientFor(userId)
+      ).blocks.children.append({
         block_id: pageId,
         children: [
           {

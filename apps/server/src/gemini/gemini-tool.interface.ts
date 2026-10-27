@@ -1,4 +1,5 @@
 import { ServerMessage } from "../types";
+import { Provider } from "../credentials/credential.types";
 
 /**
  * Abstract token class representing a Gemini function tool.
@@ -10,6 +11,8 @@ import { ServerMessage } from "../types";
 export interface ToolContext {
   /** The Puding session (one browser connection) that issued the call. */
   sessionId: string;
+  /** The Puding user who owns the session; services resolve credentials with it. */
+  userId: string;
 }
 
 export abstract class GeminiTool {
@@ -31,6 +34,12 @@ export abstract class GeminiTool {
   readonly instructions?: string;
 
   /**
+   * The provider connection this tool needs. Sessions only declare the tool
+   * when the user has that provider connected.
+   */
+  readonly requires?: Provider;
+
+  /**
    * Executes the tool's business logic.
    *
    * @param args The arguments passed by the Gemini model.
@@ -47,4 +56,12 @@ export abstract class GeminiTool {
       { type: "content" }
     >["integration"];
   }>;
+}
+
+/** The user a tool call belongs to; provider tools cannot run without one. */
+export function requireUserId(context?: ToolContext): string {
+  if (!context?.userId) {
+    throw new Error("This tool needs a signed-in Puding user.");
+  }
+  return context.userId;
 }

@@ -1,8 +1,14 @@
+import { ConfigService } from "../../config/config.service";
+import {
+  InMemoryUsageLimiter,
+  UsageLimiter,
+} from "../../database/usage-limiter";
 import { Test, TestingModule } from "@nestjs/testing";
 import { SearchWebTool } from "./search-web.tool";
 import { SearchService } from "../search-service.interface";
 
 describe("SearchWebTool", () => {
+  const ctx = { sessionId: "s", userId: "u1" };
   let tool: SearchWebTool;
   let mockSearchService: jest.Mocked<SearchService>;
 
@@ -14,6 +20,11 @@ describe("SearchWebTool", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SearchWebTool,
+        { provide: UsageLimiter, useValue: new InMemoryUsageLimiter() },
+        {
+          provide: ConfigService,
+          useValue: { getTavilyDailyLimitPerUser: () => 2 },
+        },
         {
           provide: SearchService,
           useValue: mockSearchService,
@@ -39,7 +50,7 @@ describe("SearchWebTool", () => {
     ];
     mockSearchService.search.mockResolvedValue(mockResults);
 
-    const result = await tool.execute({ query: "puding recipe" });
+    const result = await tool.execute({ query: "puding recipe" }, ctx);
 
     expect(mockSearchService.search).toHaveBeenCalledWith("puding recipe");
     expect(result.output).toEqual({ results: mockResults });
@@ -54,5 +65,19 @@ describe("SearchWebTool", () => {
         ],
       },
     });
+  });
+
+  it("stops searching once the user's daily limit is used up", async () => {
+    mockSearchService.search.mockResolvedValue([]);
+    await tool.execute({ query: "a" }, ctx);
+    await tool.execute({ query: "b" }, ctx);
+    const result = await tool.execute({ query: "c" }, ctx);
+    expect(result.output).toEqual({ error: expect.stringContaining("limit") });
+    expect(mockSearchService.search).toHaveBeenCalledTimes(2);
+    const other = await tool.execute(
+      { query: "d" },
+      { sessionId: "s2", userId: "u2" },
+    );
+    expect(other.output).not.toHaveProperty("error");
   });
 });

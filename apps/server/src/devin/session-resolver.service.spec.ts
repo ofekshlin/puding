@@ -17,8 +17,8 @@ describe("SessionResolver", () => {
   const login = session("devin-login", "Fix the login bug", 300);
   const loginPage = session("devin-page", "Redesign the login page", 200);
   const darkMode = session("devin-dark", "Add dark mode toggle", 100);
-  const ctxA = { sessionId: "a" };
-  const ctxB = { sessionId: "b" };
+  const ctxA = { sessionId: "a", userId: "u1" };
+  const ctxB = { sessionId: "b", userId: "u1" };
 
   let agent: jest.Mocked<CodingAgentService>;
   let resolver: SessionResolver;
@@ -29,7 +29,7 @@ describe("SessionResolver", () => {
       startSession: jest.fn(),
       listSessions: jest.fn().mockResolvedValue([login, loginPage, darkMode]),
       getSession: jest.fn(
-        async (id: string) =>
+        async (_userId: string, id: string) =>
           [login, loginPage, darkMode].find((s) => s.id === id) ??
           session(id, "Other"),
       ),
@@ -43,7 +43,7 @@ describe("SessionResolver", () => {
   it("resolves literal devin ids", async () => {
     const result = await resolver.resolve(ctxA, "check devin-dark please");
     expect(result).toEqual({ status: "resolved", session: darkMode });
-    expect(agent.getSession).toHaveBeenCalledWith("devin-dark");
+    expect(agent.getSession).toHaveBeenCalledWith("u1", "devin-dark");
   });
 
   it("resolves 'it' to the focused session of the same conversation only", async () => {
@@ -66,7 +66,7 @@ describe("SessionResolver", () => {
       status: "resolved",
       session: login,
     });
-    expect(agent.listSessions).toHaveBeenCalledWith({ limit: 1 });
+    expect(agent.listSessions).toHaveBeenCalledWith("u1", { limit: 1 });
   });
 
   it("reports when there are no sessions", async () => {
@@ -94,7 +94,7 @@ describe("SessionResolver", () => {
   it("fuzzy-matches titles and sets focus", async () => {
     const result = await resolver.resolve(ctxA, "the dark mode one");
     expect(result).toEqual({ status: "resolved", session: darkMode });
-    expect(agent.listSessions).toHaveBeenCalledWith({
+    expect(agent.listSessions).toHaveBeenCalledWith("u1", {
       onlyPuding: false,
       limit: 20,
     });

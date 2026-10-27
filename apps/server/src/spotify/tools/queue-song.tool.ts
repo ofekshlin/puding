@@ -1,11 +1,16 @@
 import { Injectable, Inject } from "@nestjs/common";
-import { GeminiTool } from "../../gemini/gemini-tool.interface";
+import {
+  GeminiTool,
+  ToolContext,
+  requireUserId,
+} from "../../gemini/gemini-tool.interface";
 import { MusicService } from "../music-service.interface";
 import { ServerMessage } from "../../types";
 
 @Injectable()
 export class QueueSongTool extends GeminiTool {
   readonly name = "queue_song";
+  readonly requires = "spotify" as const;
 
   readonly declaration = {
     name: this.name,
@@ -30,14 +35,20 @@ export class QueueSongTool extends GeminiTool {
     super();
   }
 
-  async execute(args: { query: string }): Promise<{
+  async execute(
+    args: { query: string },
+    context?: ToolContext,
+  ): Promise<{
     output: any;
     clientIntegration?: Extract<
       ServerMessage,
       { type: "content" }
     >["integration"];
   }> {
-    const { track, device } = await this.musicService.queueTrack(args.query);
+    const { track, device } = await this.musicService.queueTrack(
+      requireUserId(context),
+      args.query,
+    );
 
     return {
       output: {

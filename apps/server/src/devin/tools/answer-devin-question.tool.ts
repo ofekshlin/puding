@@ -1,5 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import {
+  GeminiTool,
+  ToolContext,
+  requireUserId,
+} from "../../gemini/gemini-tool.interface";
 import { sessionCard } from "../devin-card";
 import { CodingAgentService } from "../coding-agent.interface";
 import { DEVIN_TOOL_INSTRUCTIONS } from "../devin-instructions";
@@ -15,6 +19,7 @@ import {
 @Injectable()
 export class AnswerDevinQuestionTool extends GeminiTool {
   readonly name = "answer_devin_question";
+  readonly requires = "devin" as const;
   readonly instructions = DEVIN_TOOL_INSTRUCTIONS;
 
   readonly declaration = {
@@ -67,7 +72,7 @@ export class AnswerDevinQuestionTool extends GeminiTool {
     if (hasChoice) {
       const dilemma =
         this.reader.lastDilemma(context, session.id) ??
-        (await this.latestDilemma(session.id));
+        (await this.latestDilemma(requireUserId(context), session.id));
       if (!dilemma) {
         return {
           output: {
@@ -96,15 +101,21 @@ export class AnswerDevinQuestionTool extends GeminiTool {
       };
     }
 
-    const updated = await this.codingAgent.sendMessage(session.id, reply);
+    const updated = await this.codingAgent.sendMessage(
+      requireUserId(context),
+      session.id,
+      reply,
+    );
     return {
       clientIntegration: sessionCard(updated),
       output: { status: "sent", sent: reply, state: spokenState(updated) },
     };
   }
 
-  private async latestDilemma(devinId: string) {
-    const messages = await this.codingAgent.getMessages(devinId, { last: 10 });
+  private async latestDilemma(userId: string, devinId: string) {
+    const messages = await this.codingAgent.getMessages(userId, devinId, {
+      last: 10,
+    });
     const latest = [...messages].reverse().find((m) => m.from === "agent");
     return latest ? this.dilemmas.parse(latest.text) : undefined;
   }

@@ -1,5 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import {
+  GeminiTool,
+  ToolContext,
+  requireUserId,
+} from "../../gemini/gemini-tool.interface";
 import { sessionCard } from "../devin-card";
 import { CodingAgentService } from "../coding-agent.interface";
 import { DEVIN_TOOL_INSTRUCTIONS } from "../devin-instructions";
@@ -15,6 +19,7 @@ const SUMMARY_MAX_CHARS = 240;
 @Injectable()
 export class GetDevinSessionTool extends GeminiTool {
   readonly name = "get_devin_session";
+  readonly requires = "devin" as const;
   readonly instructions = DEVIN_TOOL_INSTRUCTIONS;
 
   readonly declaration = {
@@ -43,9 +48,13 @@ export class GetDevinSessionTool extends GeminiTool {
     }
 
     const session = result.session;
-    const messages = await this.codingAgent.getMessages(session.id, {
-      last: 10,
-    });
+    const messages = await this.codingAgent.getMessages(
+      requireUserId(context),
+      session.id,
+      {
+        last: 10,
+      },
+    );
     const latest = [...messages].reverse().find((m) => m.from === "agent");
     const waiting =
       session.state === "waiting_for_user" ||

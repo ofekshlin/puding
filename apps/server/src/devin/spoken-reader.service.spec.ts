@@ -17,7 +17,7 @@ const PLAN = [
 ].join("\n");
 
 describe("SpokenReader", () => {
-  const ctx = { sessionId: "conv" };
+  const ctx = { sessionId: "conv", userId: "u1" };
   let reader: SpokenReader;
 
   beforeEach(() => {
@@ -111,7 +111,11 @@ describe("SpokenReader", () => {
   it("keeps cursors per conversation", () => {
     reader.read(ctx, "devin-1", { text: PLAN, at: 1 }, "start");
     expect(
-      reader.continueReading({ sessionId: "other" }, "devin-1", "next"),
+      reader.continueReading(
+        { sessionId: "other", userId: "u1" },
+        "devin-1",
+        "next",
+      ),
     ).toBeUndefined();
   });
 });

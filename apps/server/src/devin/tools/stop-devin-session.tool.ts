@@ -1,5 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import {
+  GeminiTool,
+  ToolContext,
+  requireUserId,
+} from "../../gemini/gemini-tool.interface";
 import { devinCard, sessionCard } from "../devin-card";
 import { CodingAgentService } from "../coding-agent.interface";
 import { DEVIN_TOOL_INSTRUCTIONS } from "../devin-instructions";
@@ -9,6 +13,7 @@ import { SESSION_ARG, unresolvedOutput } from "./devin-tool.helpers";
 @Injectable()
 export class StopDevinSessionTool extends GeminiTool {
   readonly name = "stop_devin_session";
+  readonly requires = "devin" as const;
   readonly instructions = DEVIN_TOOL_INSTRUCTIONS;
 
   readonly declaration = {
@@ -64,7 +69,7 @@ export class StopDevinSessionTool extends GeminiTool {
       };
     }
 
-    await this.codingAgent.stopSession(session.id);
+    await this.codingAgent.stopSession(requireUserId(context), session.id);
     return {
       clientIntegration: sessionCard({
         ...session,
