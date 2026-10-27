@@ -6,7 +6,8 @@ import {
 } from "../session/live-session.service";
 import { ConfigService } from "../config/config.service";
 import { SessionTracker } from "../session/session-tracker.interface";
-import { AccessGuard } from "../auth/access-guard.service";
+import { AuthService } from "../auth/auth.service";
+import { LOCAL_USER } from "../users/env-user-directory";
 import WebSocket from "ws";
 import { EventEmitter } from "events";
 import { IncomingMessage } from "http";
@@ -17,7 +18,7 @@ describe("ProxyGateway (Unit)", () => {
   let mockLiveSession: jest.Mocked<LiveSession>;
   let mockConfigService: jest.Mocked<ConfigService>;
   let mockSessionTracker: jest.Mocked<SessionTracker>;
-  let mockAccessGuard: jest.Mocked<AccessGuard>;
+  let mockAuthService: jest.Mocked<AuthService>;
 
   beforeEach(async () => {
     mockLiveSession = {
@@ -45,9 +46,9 @@ describe("ProxyGateway (Unit)", () => {
       getSession: jest.fn(),
     } as any;
 
-    mockAccessGuard = {
+    mockAuthService = {
       isEnabled: jest.fn().mockReturnValue(true),
-      isAuthorized: jest.fn().mockReturnValue(true),
+      authenticate: jest.fn().mockResolvedValue({ ok: true, user: LOCAL_USER }),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -66,8 +67,8 @@ describe("ProxyGateway (Unit)", () => {
           useValue: mockSessionTracker,
         },
         {
-          provide: AccessGuard,
-          useValue: mockAccessGuard,
+          provide: AuthService,
+          useValue: mockAuthService,
         },
       ],
     }).compile();
@@ -75,24 +76,25 @@ describe("ProxyGateway (Unit)", () => {
     gateway = module.get<ProxyGateway>(ProxyGateway);
   });
 
-  it("should create a session on connection", () => {
+  it("should create a session for the authenticated user", async () => {
     const mockSocket = new EventEmitter() as any;
     mockSocket.close = jest.fn();
     const mockReq = {
       socket: { remoteAddress: "127.0.0.1" },
     } as unknown as IncomingMessage;
 
-    gateway.handleConnection(mockSocket, mockReq);
+    await gateway.handleConnection(mockSocket, mockReq);
 
     expect(mockConfigService.getGeminiApiKey).toHaveBeenCalled();
     expect(mockLiveSessionService.createSession).toHaveBeenCalledWith(
       mockSocket,
       "test-api-key",
       expect.any(String),
+      LOCAL_USER,
     );
   });
 
-  it("should reject connection if API key is missing", () => {
+  it("should reject connection if API key is missing", async () => {
     mockConfigService.getGeminiApiKey.mockReturnValueOnce("");
     const mockSocket = new EventEmitter() as any;
     mockSocket.close = jest.fn();
@@ -100,28 +102,31 @@ describe("ProxyGateway (Unit)", () => {
       socket: { remoteAddress: "127.0.0.1" },
     } as unknown as IncomingMessage;
 
-    gateway.handleConnection(mockSocket, mockReq);
+    await gateway.handleConnection(mockSocket, mockReq);
 
     expect(mockSocket.close).toHaveBeenCalledWith(1011, expect.any(String));
     expect(mockLiveSessionService.createSession).not.toHaveBeenCalled();
   });
 
-  it("should close unauthenticated clients with 4401 before creating a session", () => {
-    mockAccessGuard.isAuthorized.mockReturnValueOnce(false);
+  it("should reject unauthenticated clients with a reason before closing", async () => {
+    mockAuthService.authenticate.mockResolvedValueOnce({
+      ok: false,
+      reason: "expired",
+    });
     const mockSocket = new EventEmitter() as any;
     mockSocket.close = jest.fn();
     mockSocket.send = jest.fn();
     jest.useFakeTimers();
     const mockReq = {
-      url: "/?token=wrong",
+      url: "/?token=abc.def.ghi",
       socket: { remoteAddress: "127.0.0.1" },
     } as unknown as IncomingMessage;
 
-    gateway.handleConnection(mockSocket, mockReq);
+    await gateway.handleConnection(mockSocket, mockReq);
 
-    expect(mockAccessGuard.isAuthorized).toHaveBeenCalledWith(mockReq);
+    expect(mockAuthService.authenticate).toHaveBeenCalledWith("abc.def.ghi");
     expect(mockSocket.send).toHaveBeenCalledWith(
-      JSON.stringify({ type: "unauthorized" }),
+      JSON.stringify({ type: "unauthorized", reason: "expired" }),
     );
     expect(mockSocket.close).not.toHaveBeenCalled();
     jest.advanceTimersByTime(250);
@@ -134,13 +139,86 @@ describe("ProxyGateway (Unit)", () => {
     expect(mockLiveSession.sendAudio).not.toHaveBeenCalled();
   });
 
-  it("should relay setup message", () => {
+  it("should reject pending users", async () => {
+    mockAuthService.authenticate.mockResolvedValueOnce({
+      ok: false,
+      reason: "pending",
+    });
+    const mockSocket = new EventEmitter() as any;
+    mockSocket.close = jest.fn();
+    mockSocket.send = jest.fn();
+    const mockReq = {
+      url: "/?token=t",
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+
+    await gateway.handleConnection(mockSocket, mockReq);
+
+    expect(mockSocket.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: "unauthorized", reason: "pending" }),
+    );
+    expect(mockLiveSessionService.createSession).not.toHaveBeenCalled();
+  });
+
+  it("should replay messages sent while the token was being verified", async () => {
+    let finish!: (value: any) => void;
+    mockAuthService.authenticate.mockReturnValueOnce(
+      new Promise((resolve) => (finish = resolve)),
+    );
+    const mockSocket = new EventEmitter() as any;
+    const mockReq = {
+      url: "/?token=t",
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+
+    const connecting = gateway.handleConnection(mockSocket, mockReq);
+    mockSocket.emit(
+      "message",
+      Buffer.from(JSON.stringify({ type: "setup", config: { model: "m" } })),
+      false,
+    );
+    expect(mockLiveSession.sendSetup).not.toHaveBeenCalled();
+
+    finish({ ok: true, user: LOCAL_USER });
+    await connecting;
+
+    expect(mockLiveSession.sendSetup).toHaveBeenCalledWith({ model: "m" });
+    expect(mockSocket.listenerCount("message")).toBe(1);
+  });
+
+  it("should not open a session for a client that left during verification", async () => {
+    const mockSocket = new EventEmitter() as any;
+    mockSocket.readyState = WebSocket.CLOSED;
+    const mockReq = {
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+
+    await gateway.handleConnection(mockSocket, mockReq);
+
+    expect(mockLiveSessionService.createSession).not.toHaveBeenCalled();
+  });
+
+  it("should close with 1011 when verification throws", async () => {
+    mockAuthService.authenticate.mockRejectedValueOnce(new Error("db down"));
+    const mockSocket = new EventEmitter() as any;
+    mockSocket.close = jest.fn();
+    const mockReq = {
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+
+    await gateway.handleConnection(mockSocket, mockReq);
+
+    expect(mockSocket.close).toHaveBeenCalledWith(1011, expect.any(String));
+    expect(mockLiveSessionService.createSession).not.toHaveBeenCalled();
+  });
+
+  it("should relay setup message", async () => {
     const mockSocket = new EventEmitter() as any;
     const mockReq = {
       socket: { remoteAddress: "127.0.0.1" },
     } as unknown as IncomingMessage;
 
-    gateway.handleConnection(mockSocket, mockReq);
+    await gateway.handleConnection(mockSocket, mockReq);
 
     const setupPayload = JSON.stringify({
       type: "setup",
@@ -155,13 +233,13 @@ describe("ProxyGateway (Unit)", () => {
     });
   });
 
-  it("should relay client content message", () => {
+  it("should relay client content message", async () => {
     const mockSocket = new EventEmitter() as any;
     const mockReq = {
       socket: { remoteAddress: "127.0.0.1" },
     } as unknown as IncomingMessage;
 
-    gateway.handleConnection(mockSocket, mockReq);
+    await gateway.handleConnection(mockSocket, mockReq);
 
     const contentPayload = JSON.stringify({
       type: "client_content",
@@ -176,13 +254,13 @@ describe("ProxyGateway (Unit)", () => {
     });
   });
 
-  it("should relay raw binary audio data", () => {
+  it("should relay raw binary audio data", async () => {
     const mockSocket = new EventEmitter() as any;
     const mockReq = {
       socket: { remoteAddress: "127.0.0.1" },
     } as unknown as IncomingMessage;
 
-    gateway.handleConnection(mockSocket, mockReq);
+    await gateway.handleConnection(mockSocket, mockReq);
 
     const dummyAudio = Buffer.alloc(100);
 
@@ -192,13 +270,13 @@ describe("ProxyGateway (Unit)", () => {
     expect(mockLiveSession.sendAudio).toHaveBeenCalledWith(dummyAudio);
   });
 
-  it("should destroy session and clean up on disconnect", () => {
+  it("should destroy session and clean up on disconnect", async () => {
     const mockSocket = new EventEmitter() as any;
     const mockReq = {
       socket: { remoteAddress: "127.0.0.1" },
     } as unknown as IncomingMessage;
 
-    gateway.handleConnection(mockSocket, mockReq);
+    await gateway.handleConnection(mockSocket, mockReq);
     gateway.handleDisconnect(mockSocket);
 
     expect(mockLiveSession.destroy).toHaveBeenCalled();

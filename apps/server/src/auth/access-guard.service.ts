@@ -6,6 +6,16 @@ import { ConfigService } from "../config/config.service";
 export const ACCESS_TOKEN_QUERY_PARAM = "token";
 export const UNAUTHORIZED_CLOSE_CODE = 4401;
 
+/** Reads `?token=` from an upgrade request; browsers cannot set WebSocket headers. */
+export function readQueryToken(req: IncomingMessage): string | null {
+  try {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    return url.searchParams.get(ACCESS_TOKEN_QUERY_PARAM);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Gatekeeper for WebSocket upgrades. When `PUDING_ACCESS_TOKEN` is configured,
  * a client must present the same value in the `?token=` query parameter.
@@ -35,21 +45,14 @@ export class AccessGuard {
    * so the comparison is constant-time regardless of the presented length.
    */
   public isAuthorized(req: IncomingMessage): boolean {
-    if (!this.expectedDigest) return true;
+    return this.isTokenValid(readQueryToken(req));
+  }
 
-    const presented = AccessGuard.readToken(req);
+  public isTokenValid(presented: string | null | undefined): boolean {
+    if (!this.expectedDigest) return true;
     if (!presented) return false;
 
     return timingSafeEqual(AccessGuard.digest(presented), this.expectedDigest);
-  }
-
-  private static readToken(req: IncomingMessage): string | null {
-    try {
-      const url = new URL(req.url ?? "/", "http://localhost");
-      return url.searchParams.get(ACCESS_TOKEN_QUERY_PARAM);
-    } catch {
-      return null;
-    }
   }
 
   private static digest(value: string): Buffer {

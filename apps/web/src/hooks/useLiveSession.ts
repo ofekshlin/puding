@@ -8,6 +8,7 @@ import {
   withAccessToken,
   UNAUTHORIZED_CLOSE_CODE,
 } from "../lib/accessToken";
+import { fetchPudingToken } from "../lib/pudingToken";
 
 export type ConnectionStatus =
   "disconnected" | "connecting" | "waking" | "connected" | "failed";
@@ -15,6 +16,14 @@ export type ConnectionStatus =
 // A free-tier Render instance that has spun down takes ~30-50s to answer, so
 // a handshake still pending after this long is reported as a cold start.
 const WAKING_NOTICE_MS = 4000;
+
+/** Why a signed-in user was turned away; `invalid` means the server did not accept the sign-in. */
+export type AccessDeniedReason = "pending" | "rejected" | "invalid";
+
+export interface UseLiveSessionOptions {
+  /** Google sign-in is on, so each connect uses a fresh Puding token. */
+  authEnabled?: boolean;
+}
 
 export interface ChatMessage {
   id: string;
@@ -37,6 +46,7 @@ export interface UseLiveSessionResult {
   messages: ChatMessage[];
   isThinking: boolean;
   accessTokenRequired: boolean;
+  accessDenied: AccessDeniedReason | null;
   submitAccessToken: (token: string) => void;
   connect: () => Promise<void>;
   disconnect: () => void;
@@ -45,13 +55,20 @@ export interface UseLiveSessionResult {
   sendTextMessage: (text: string) => void;
 }
 
-export function useLiveSession(): UseLiveSessionResult {
+export function useLiveSession({
+  authEnabled = false,
+}: UseLiveSessionOptions = {}): UseLiveSessionResult {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [logs, setLogs] = useState<string[]>(["System ready."]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [accessTokenRequired, setAccessTokenRequired] =
     useState<boolean>(false);
+  const [accessDenied, setAccessDenied] = useState<AccessDeniedReason | null>(
+    null,
+  );
+  const expiredRetriesRef = useRef(0);
+  const connectRef = useRef<() => Promise<void>>();
   const wsRef = useRef<WebSocket | null>(null);
   const wakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -90,11 +107,30 @@ export function useLiveSession(): UseLiveSessionResult {
     setStatus("connecting");
     setMessages([]);
     setIsThinking(false);
+    setAccessDenied(null);
 
-    const wsUrl = await resolveWsUrl();
+    let token: string | null;
+    let wsUrl: string;
+    try {
+      if (authEnabled) {
+        const result = await fetchPudingToken();
+        if (result.kind === "signed_out") {
+          window.location.assign("/signin");
+          return;
+        }
+        token = result.kind === "token" ? result.token : null;
+      } else {
+        token = readAccessToken();
+      }
+      wsUrl = await resolveWsUrl();
+    } catch (err) {
+      setStatus("failed");
+      addLog(`Could not prepare the connection: ${err}`);
+      return;
+    }
     addLog(`Connecting to WebSocket proxy at ${wsUrl}...`);
 
-    const ws = new WebSocket(withAccessToken(wsUrl, readAccessToken()));
+    const ws = new WebSocket(withAccessToken(wsUrl, token));
     wsRef.current = ws;
 
     clearWakingTimer();
@@ -104,6 +140,7 @@ export function useLiveSession(): UseLiveSessionResult {
     }, WAKING_NOTICE_MS);
 
     let rejected = false;
+    let rejectReason: string | undefined;
 
     ws.onopen = () => {
       clearWakingTimer();
@@ -131,7 +168,9 @@ export function useLiveSession(): UseLiveSessionResult {
         const msg = JSON.parse(event.data);
         if (msg.type === "unauthorized") {
           rejected = true;
+          rejectReason = msg.reason;
         } else if (msg.type === "setup_complete") {
+          expiredRetriesRef.current = 0;
           addLog("Gemini setup complete. Start talking!");
         } else if (msg.type === "content") {
           if (msg.userTranscription) {
@@ -254,7 +293,27 @@ export function useLiveSession(): UseLiveSessionResult {
     ws.onclose = (event) => {
       clearWakingTimer();
       setStatus("disconnected");
-      if (event.code === UNAUTHORIZED_CLOSE_CODE || rejected) {
+      if (
+        authEnabled &&
+        rejectReason === "expired" &&
+        expiredRetriesRef.current < 1
+      ) {
+        expiredRetriesRef.current += 1;
+        addLog("Sign-in token expired, reconnecting...");
+        void connectRef.current?.();
+      } else if (
+        authEnabled &&
+        (event.code === UNAUTHORIZED_CLOSE_CODE || rejected)
+      ) {
+        setAccessDenied(
+          rejectReason === "pending" || rejectReason === "rejected"
+            ? rejectReason
+            : "invalid",
+        );
+        addLog(
+          `Server turned the session away (${rejectReason ?? "unknown"}).`,
+        );
+      } else if (event.code === UNAUTHORIZED_CLOSE_CODE || rejected) {
         setAccessTokenRequired(true);
         addLog("Server rejected the access token.");
       } else {
@@ -273,6 +332,7 @@ export function useLiveSession(): UseLiveSessionResult {
       setIsThinking(false);
     };
   }, [
+    authEnabled,
     addLog,
     stopRecording,
     playChunk,
@@ -280,6 +340,10 @@ export function useLiveSession(): UseLiveSessionResult {
     initPlayer,
     clearWakingTimer,
   ]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     clearWakingTimer();
@@ -374,6 +438,7 @@ export function useLiveSession(): UseLiveSessionResult {
     messages,
     isThinking,
     accessTokenRequired,
+    accessDenied,
     submitAccessToken,
     connect,
     disconnect,

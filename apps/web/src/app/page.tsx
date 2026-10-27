@@ -1,75 +1,19 @@
-"use client";
+import { redirect } from "next/navigation";
+import { auth } from "../auth";
+import { VoiceApp } from "../components/VoiceApp";
+import { isAuthConfigured } from "../lib/authConfig";
 
-import React from "react";
-import { useLiveSession } from "../hooks/useLiveSession";
-import { VisualizerOrb } from "../components/VisualizerOrb";
-import { StatusIndicator } from "../components/StatusIndicator";
-import { ControlPanel } from "../components/ControlPanel";
-import { ChatWindow } from "../components/ChatWindow";
-import { ChatInput } from "../components/ChatInput";
-import { AccessTokenPrompt } from "../components/AccessTokenPrompt";
+export const dynamic = "force-dynamic";
 
-export default function Home() {
-  const {
-    status,
-    isRecording,
-    isSpeaking,
-    audioLevel,
-    messages,
-    isThinking,
-    accessTokenRequired,
-    submitAccessToken,
-    connect,
-    disconnect,
-    toggleRecording,
-    sendTextMessage,
-  } = useLiveSession();
+export default async function Home() {
+  if (!isAuthConfigured()) return <VoiceApp />;
+
+  const user = (await auth())?.user;
+  if (!user) redirect("/signin");
 
   return (
-    <div className="container">
-      <main className="card">
-        <header className="logo-container">
-          <h1 className="title">Puding 🍮</h1>
-          <p className="subtitle">Real-time Multimodal Live Proxy Client</p>
-        </header>
-
-        {/* Bouncing visualizer orb action button */}
-        <VisualizerOrb
-          status={status}
-          isRecording={isRecording}
-          isSpeaking={isSpeaking}
-          audioLevel={audioLevel}
-          onOrbClick={status === "connected" ? toggleRecording : connect}
-          disabled={status === "connecting" || status === "waking"}
-          isThinking={isThinking}
-        />
-
-        {/* State monitoring label */}
-        <StatusIndicator
-          status={status}
-          isRecording={isRecording}
-          audioLevel={audioLevel}
-        />
-
-        {accessTokenRequired && (
-          <AccessTokenPrompt onSubmit={submitAccessToken} />
-        )}
-
-        {/* Connection control buttons */}
-        <ControlPanel
-          status={status}
-          isRecording={isRecording}
-          onConnect={connect}
-          onDisconnect={disconnect}
-          onToggleRecording={toggleRecording}
-        />
-
-        {/* Chat Window showing conversation messages & widgets */}
-        <ChatWindow messages={messages} isThinking={isThinking} />
-
-        {/* Text input to send typed messages */}
-        <ChatInput status={status} onSendMessage={sendTextMessage} />
-      </main>
-    </div>
+    <VoiceApp
+      user={{ name: user.name, email: user.email, image: user.image }}
+    />
   );
 }

@@ -1,0 +1,37 @@
+import React from "react";
+import { signOutOfPuding } from "../app/actions";
+
+export interface SignedInUser {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
+
+export const UserMenu: React.FC<{ user: SignedInUser }> = ({ user }) => {
+  const label = user.name || user.email || "Signed in";
+  return (
+    <div className="user-menu">
+      {user.image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={user.image}
+          alt=""
+          className="user-avatar"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <span className="user-avatar user-avatar-fallback" aria-hidden>
+          {label.charAt(0).toUpperCase()}
+        </span>
+      )}
+      <span className="user-menu-name" title={user.email ?? undefined}>
+        {label}
+      </span>
+      <form action={signOutOfPuding}>
+        <button type="submit" className="btn btn-secondary btn-sm">
+          Sign out
+        </button>
+      </form>
+    </div>
+  );
+};

@@ -15,9 +15,10 @@ import { ClientMessage } from "../types";
 import { randomUUID } from "crypto";
 import { SessionTracker } from "../session/session-tracker.interface";
 import {
-  AccessGuard,
   UNAUTHORIZED_CLOSE_CODE,
+  readQueryToken,
 } from "../auth/access-guard.service";
+import { AuthFailureReason, AuthService } from "../auth/auth.service";
 
 /** Lets the "unauthorized" message reach the client before the close frame. */
 const UNAUTHORIZED_CLOSE_DELAY_MS = 250;
@@ -32,29 +33,52 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly liveSessionService: LiveSessionService,
     @Inject(ConfigService) private readonly configService: ConfigService,
     @Inject(SessionTracker) private readonly sessionTracker: SessionTracker,
-    @Inject(AccessGuard) private readonly accessGuard: AccessGuard,
+    @Inject(AuthService) private readonly authService: AuthService,
   ) {}
 
   /**
    * Fires when a new client connects to the WebSocket proxy gateway.
    */
-  public handleConnection(client: WebSocket, req: IncomingMessage): void {
+  public async handleConnection(
+    client: WebSocket,
+    req: IncomingMessage,
+  ): Promise<void> {
     const clientIp = req.socket.remoteAddress;
     const sessionId = randomUUID().substring(0, 8);
 
-    if (!this.accessGuard.isAuthorized(req)) {
-      this.logger.warn(
-        `Rejecting unauthenticated client [${sessionId}] from IP: ${clientIp}`,
-      );
-      client.send(JSON.stringify({ type: "unauthorized" }));
-      setTimeout(
-        () => client.close(UNAUTHORIZED_CLOSE_CODE, "Unauthorized"),
-        UNAUTHORIZED_CLOSE_DELAY_MS,
-      );
+    // The client sends its setup as soon as the socket opens, which can be
+    // before the token is verified; hold those messages until the session exists.
+    const early: Array<[WebSocket.Data, boolean]> = [];
+    const hold = (data: WebSocket.Data, isBinary: boolean) =>
+      early.push([data, isBinary]);
+    client.on("message", hold);
+
+    const result = await this.authService
+      .authenticate(readQueryToken(req))
+      .catch((error: unknown) => {
+        this.logger.error(`Authentication failed [${sessionId}]:`, error);
+        return null;
+      });
+    client.off("message", hold);
+
+    if (!result) {
+      client.close(1011, "Authentication unavailable");
+      return;
+    }
+    if (!result.ok) {
+      this.reject(client, sessionId, clientIp, result.reason);
+      return;
+    }
+    if (
+      client.readyState === WebSocket.CLOSING ||
+      client.readyState === WebSocket.CLOSED
+    ) {
       return;
     }
 
-    this.logger.log(`New client connected [${sessionId}] from IP: ${clientIp}`);
+    this.logger.log(
+      `New client connected [${sessionId}] from IP: ${clientIp} (user ${result.user.id})`,
+    );
 
     const apiKey = this.configService.getGeminiApiKey();
     if (!apiKey) {
@@ -71,6 +95,7 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client,
       apiKey,
       sessionId,
+      result.user,
     );
     this.sessions.set(client, session);
 
@@ -78,6 +103,28 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.on("message", (data: WebSocket.Data, isBinary: boolean) => {
       this.handleClientMessage(client, data, isBinary);
     });
+    for (const [data, isBinary] of early) {
+      this.handleClientMessage(client, data, isBinary);
+    }
+  }
+
+  /**
+   * Render's proxy drops close codes, so the reason travels as a message first.
+   */
+  private reject(
+    client: WebSocket,
+    sessionId: string,
+    clientIp: string | undefined,
+    reason: AuthFailureReason,
+  ): void {
+    this.logger.warn(
+      `Rejecting client [${sessionId}] from IP: ${clientIp} (${reason})`,
+    );
+    client.send(JSON.stringify({ type: "unauthorized", reason }));
+    setTimeout(
+      () => client.close(UNAUTHORIZED_CLOSE_CODE, "Unauthorized"),
+      UNAUTHORIZED_CLOSE_DELAY_MS,
+    );
   }
 
   /**

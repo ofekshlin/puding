@@ -56,14 +56,25 @@ describe("PostgresUserDirectory", () => {
 });
 
 describe("EnvUserDirectory", () => {
-  it("is always the approved local admin", async () => {
+  it("maps admins onto the local user and nobody else", async () => {
     const users = new EnvUserDirectory();
     expect(
       await users.upsertFromGoogle(
-        { googleSub: "x", email: "x@y.z" },
-        { role: "user", status: "pending" },
+        { googleSub: "x", email: "Owner@y.z" },
+        { role: "admin", status: "approved" },
       ),
     ).toEqual(LOCAL_USER);
+    expect(
+      await users.upsertFromGoogle(
+        { googleSub: "y", email: "Friend@y.z" },
+        { role: "user", status: "pending" },
+      ),
+    ).toEqual({
+      id: "google:y",
+      email: "friend@y.z",
+      role: "user",
+      status: "pending",
+    });
     expect(await users.findById("local")).toEqual(LOCAL_USER);
     expect(await users.findById("other")).toBeNull();
   });
