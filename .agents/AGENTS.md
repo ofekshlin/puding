@@ -94,6 +94,13 @@ Project **Puding** is an ultra-low-latency, stateful, multimodal AI Agent (Jarvi
 - `SpokenReader` and `DilemmaParser`: plans read section by section and questions read with every option, word for word.
 - `devin` integration cards and proactive status updates via `DevinWatcher`.
 
+### Phase 8: Accounts, Sign-Up & Per-User Connections
+
+- Google sign-in (Auth.js) with short-lived Puding tokens verified by the backend on WebSocket and REST; `SIGNUP_MODE` allowlist / request / open and an admin approval page.
+- Neon Postgres via Drizzle; `CredentialStore` abstraction with AES-256-GCM encrypted per-user credentials and an env-backed fallback for local dev and previews.
+- Per-user connections: Spotify and Notion via OAuth, Devin via a pasted PAT + org ID; Tavily and Gemini stay shared server keys.
+- `ToolContext.userId` and `GeminiTool.requires`: each session registers only the tools for the user's connected providers; Devin polling and caps are per user.
+
 ## Future Features
 
 - **Semantic Long-Term Memory (RAG):** PostgreSQL + `pgvector` setup, background summarization, and context injection.
