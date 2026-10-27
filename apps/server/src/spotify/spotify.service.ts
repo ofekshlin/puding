@@ -48,7 +48,7 @@ export class SpotifyService extends MusicService {
     super();
   }
 
-  public async searchTrack(query: string): Promise<Track> {
+  public async searchTrack(userId: string, query: string): Promise<Track> {
     this.logger.log(`Searching Spotify for track: "${query}"`);
 
     const params = new URLSearchParams({
@@ -58,7 +58,7 @@ export class SpotifyService extends MusicService {
     });
     const data = await this.request<{
       tracks?: { items?: SpotifyTrackItem[] };
-    }>("GET", `/search?${params.toString()}`);
+    }>(userId, "GET", `/search?${params.toString()}`);
 
     const item = data?.tracks?.items?.[0];
     if (!item) {
@@ -69,15 +69,21 @@ export class SpotifyService extends MusicService {
   }
 
   public async playTrack(
+    userId: string,
     query: string,
     deviceName?: string,
   ): Promise<PlaybackResult> {
-    const track = await this.searchTrack(query);
-    const device = await this.resolveDevice(deviceName);
+    const track = await this.searchTrack(userId, query);
+    const device = await this.resolveDevice(userId, deviceName);
 
-    await this.request("PUT", `/me/player/play?device_id=${device.id}`, {
-      uris: [track.uri],
-    });
+    await this.request(
+      userId,
+      "PUT",
+      `/me/player/play?device_id=${device.id}`,
+      {
+        uris: [track.uri],
+      },
+    );
 
     this.logger.log(
       `Playing "${track.name}" by ${track.artist} on device "${device.name}".`,
@@ -85,15 +91,18 @@ export class SpotifyService extends MusicService {
     return { track, device: device.name };
   }
 
-  public async queueTrack(query: string): Promise<PlaybackResult> {
-    const track = await this.searchTrack(query);
-    const device = await this.resolveDevice();
+  public async queueTrack(
+    userId: string,
+    query: string,
+  ): Promise<PlaybackResult> {
+    const track = await this.searchTrack(userId, query);
+    const device = await this.resolveDevice(userId);
 
     const params = new URLSearchParams({
       uri: track.uri,
       device_id: device.id,
     });
-    await this.request("POST", `/me/player/queue?${params.toString()}`);
+    await this.request(userId, "POST", `/me/player/queue?${params.toString()}`);
 
     this.logger.log(
       `Queued "${track.name}" by ${track.artist} on device "${device.name}".`,
@@ -102,14 +111,15 @@ export class SpotifyService extends MusicService {
   }
 
   public async addTrackToPlaylist(
+    userId: string,
     query: string,
     playlistName: string,
   ): Promise<PlaylistAdditionResult> {
-    const track = await this.searchTrack(query);
-    const playlist = await this.resolvePlaylist(playlistName);
+    const track = await this.searchTrack(userId, query);
+    const playlist = await this.resolvePlaylist(userId, playlistName);
 
     // The `/tracks` variant of this endpoint was removed in February 2026.
-    await this.request("POST", `/playlists/${playlist.id}/items`, {
+    await this.request(userId, "POST", `/playlists/${playlist.id}/items`, {
       uris: [track.uri],
     });
 
@@ -124,9 +134,11 @@ export class SpotifyService extends MusicService {
    * or the only available device.
    */
   private async resolveDevice(
+    userId: string,
     deviceName?: string,
   ): Promise<{ id: string; name: string }> {
     const data = await this.request<{ devices?: SpotifyDevice[] }>(
+      userId,
       "GET",
       "/me/player/devices",
     );
@@ -163,11 +175,11 @@ export class SpotifyService extends MusicService {
    * Resolves a playlist owned by (or followed by) the user, by name.
    */
   private async resolvePlaylist(
+    userId: string,
     playlistName: string,
   ): Promise<{ id: string; name: string }> {
     const wanted = playlistName.trim().toLowerCase();
-    let next: string | undefined =
-      `/me/playlists?limit=${PLAYLIST_PAGE_LIMIT}`;
+    let next: string | undefined = `/me/playlists?limit=${PLAYLIST_PAGE_LIMIT}`;
     let fallback: SpotifyPlaylistItem | undefined;
 
     while (next) {
@@ -175,7 +187,7 @@ export class SpotifyService extends MusicService {
         await this.request<{
           items?: SpotifyPlaylistItem[];
           next?: string | null;
-        }>("GET", next);
+        }>(userId, "GET", next);
 
       for (const playlist of page?.items ?? []) {
         const name = playlist.name?.toLowerCase() ?? "";
@@ -215,13 +227,14 @@ export class SpotifyService extends MusicService {
    * on `401` and honouring a single `429` retry.
    */
   private async request<T>(
+    userId: string,
     method: string,
     path: string,
     body?: unknown,
     isRetry = false,
   ): Promise<T> {
     const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
-    const accessToken = await this.authService.getAccessToken();
+    const accessToken = await this.authService.getAccessToken(userId);
 
     const response = await fetch(url, {
       method,
@@ -242,15 +255,15 @@ export class SpotifyService extends MusicService {
 
     if (response.status === 401 && !isRetry) {
       this.logger.warn("Spotify access token rejected; refreshing and retry.");
-      await this.authService.refreshAccessToken();
-      return this.request<T>(method, path, body, true);
+      await this.authService.refreshAccessToken(userId);
+      return this.request<T>(userId, method, path, body, true);
     }
 
     if (response.status === 429 && !isRetry) {
       const retryAfter = Number(response.headers.get("Retry-After") ?? 1);
       this.logger.warn(`Spotify rate limited; retrying in ${retryAfter}s.`);
       await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
-      return this.request<T>(method, path, body, true);
+      return this.request<T>(userId, method, path, body, true);
     }
 
     throw new Error(await this.describeError(response, method, path));

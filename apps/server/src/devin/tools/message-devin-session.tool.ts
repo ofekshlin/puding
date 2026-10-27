@@ -1,5 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import {
+  GeminiTool,
+  ToolContext,
+  requireUserId,
+} from "../../gemini/gemini-tool.interface";
 import { sessionCard } from "../devin-card";
 import { CodingAgentService } from "../coding-agent.interface";
 import { DEVIN_TOOL_INSTRUCTIONS } from "../devin-instructions";
@@ -13,6 +17,7 @@ import {
 @Injectable()
 export class MessageDevinSessionTool extends GeminiTool {
   readonly name = "message_devin_session";
+  readonly requires = "devin" as const;
   readonly instructions = DEVIN_TOOL_INSTRUCTIONS;
 
   readonly declaration = {
@@ -51,6 +56,7 @@ export class MessageDevinSessionTool extends GeminiTool {
     }
 
     const updated = await this.codingAgent.sendMessage(
+      requireUserId(context),
       result.session.id,
       args.message,
     );

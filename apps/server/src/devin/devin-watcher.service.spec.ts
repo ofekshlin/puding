@@ -1,3 +1,4 @@
+import { ConnectionEvents } from "../credentials/connection-events";
 import { ConfigService } from "../config/config.service";
 import { AgentSession, CodingAgentService } from "./coding-agent.interface";
 import { DevinUpdateSubscriber, DevinWatcher } from "./devin-watcher.service";
@@ -32,10 +33,17 @@ describe("DevinWatcher", () => {
       isPreview: jest.fn().mockReturnValue(false),
       isDevinEnabledInPreview: jest.fn().mockReturnValue(false),
       getDevinPollIntervalMs: jest.fn().mockReturnValue(20000),
+      getDevinMaxWatchedUsers: jest.fn().mockReturnValue(10),
     } as any;
     reader = new SpokenReader();
-    watcher = new DevinWatcher(agent, config, new DilemmaParser(), reader);
-    subscriber = { sessionId: "conv", onDevinUpdate: jest.fn() };
+    watcher = new DevinWatcher(
+      agent,
+      config,
+      new DilemmaParser(),
+      reader,
+      new ConnectionEvents(),
+    );
+    subscriber = { sessionId: "conv", userId: "u1", onDevinUpdate: jest.fn() };
   });
 
   afterEach(() => {
@@ -65,7 +73,7 @@ describe("DevinWatcher", () => {
     agent.getMessages.mockResolvedValue([
       { from: "agent", text: "I opened the PR. All checks pass.", at: 1 },
     ]);
-    await watcher.poll();
+    await watcher.poll("u1");
 
     expect(subscriber.onDevinUpdate).toHaveBeenCalledTimes(1);
     const update = subscriber.onDevinUpdate.mock.calls[0][0];
@@ -81,7 +89,7 @@ describe("DevinWatcher", () => {
       state: "finished",
     });
 
-    await watcher.poll();
+    await watcher.poll("u1");
     expect(subscriber.onDevinUpdate).toHaveBeenCalledTimes(1);
   });
 
@@ -90,9 +98,9 @@ describe("DevinWatcher", () => {
     watcher.subscribe(subscriber);
     await flush();
     agent.listSessions.mockResolvedValue([session("working")]);
-    await watcher.poll();
+    await watcher.poll("u1");
     agent.listSessions.mockResolvedValue([session("sleeping")]);
-    await watcher.poll();
+    await watcher.poll("u1");
     expect(subscriber.onDevinUpdate).not.toHaveBeenCalled();
   });
 
@@ -104,12 +112,13 @@ describe("DevinWatcher", () => {
     agent.getMessages.mockResolvedValue([
       { from: "agent", text: "Which database?\nA) Postgres\nB) SQLite", at: 1 },
     ]);
-    await watcher.poll();
+    await watcher.poll("u1");
 
     const update = subscriber.onDevinUpdate.mock.calls[0][0];
     expect(update.note).toContain("Devin has a question with 2 options");
     expect(
-      reader.lastDilemma({ sessionId: "conv" }, "devin-dark")?.options,
+      reader.lastDilemma({ sessionId: "conv", userId: "u1" }, "devin-dark")
+        ?.options,
     ).toHaveLength(2);
   });
 
@@ -143,7 +152,7 @@ describe("DevinWatcher", () => {
     await flush();
 
     agent.listSessions.mockResolvedValue([session("finished")]);
-    const late = { sessionId: "late", onDevinUpdate: jest.fn() };
+    const late = { sessionId: "late", userId: "u1", onDevinUpdate: jest.fn() };
     watcher.subscribe(late);
     await flush();
     expect(late.onDevinUpdate).not.toHaveBeenCalled();
@@ -151,6 +160,31 @@ describe("DevinWatcher", () => {
 
   it("swallows polling errors", async () => {
     agent.listSessions.mockRejectedValue(new Error("Devin is down"));
-    await expect(watcher.poll()).resolves.toBeUndefined();
+    await expect(watcher.poll("u1")).resolves.toBeUndefined();
+  });
+
+  it("polls each user's Devin sessions with that user's credentials", async () => {
+    watcher.subscribe(subscriber);
+    watcher.subscribe({
+      sessionId: "conv-2",
+      userId: "u2",
+      onDevinUpdate: jest.fn(),
+    });
+    await flush();
+    const users = agent.listSessions.mock.calls.map(([userId]) => userId);
+    expect(users).toEqual(expect.arrayContaining(["u1", "u2"]));
+  });
+
+  it("stops adding users at DEVIN_MAX_WATCHED_USERS", async () => {
+    config.getDevinMaxWatchedUsers.mockReturnValue(1);
+    watcher.subscribe(subscriber);
+    watcher.subscribe({
+      sessionId: "conv-2",
+      userId: "u2",
+      onDevinUpdate: jest.fn(),
+    });
+    await flush();
+    const users = agent.listSessions.mock.calls.map(([userId]) => userId);
+    expect(users).toEqual(["u1"]);
   });
 });

@@ -34,12 +34,13 @@ export abstract class MusicService {
   /**
    * Finds the best matching track for a free-text query.
    */
-  abstract searchTrack(query: string): Promise<Track>;
+  abstract searchTrack(userId: string, query: string): Promise<Track>;
 
   /**
    * Starts playback of the best matching track on the active device.
    */
   abstract playTrack(
+    userId: string,
     query: string,
     deviceName?: string,
   ): Promise<PlaybackResult>;
@@ -47,12 +48,13 @@ export abstract class MusicService {
   /**
    * Appends the best matching track to the current playback queue.
    */
-  abstract queueTrack(query: string): Promise<PlaybackResult>;
+  abstract queueTrack(userId: string, query: string): Promise<PlaybackResult>;
 
   /**
    * Appends the best matching track to a playlist resolved by name.
    */
   abstract addTrackToPlaylist(
+    userId: string,
     query: string,
     playlistName: string,
   ): Promise<PlaylistAdditionResult>;

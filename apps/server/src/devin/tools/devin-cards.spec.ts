@@ -23,7 +23,7 @@ const PLAN = "## Stage 1\nOne.\n## Stage 2\nTwo.";
 const QUESTION = "Which one?\nA) Postgres\nB) SQLite\nI recommend option B.";
 
 describe("Devin client cards", () => {
-  const ctx = { sessionId: "conv" };
+  const ctx = { sessionId: "conv", userId: "u1" };
   let agent: jest.Mocked<CodingAgentService>;
   let resolver: SessionResolver;
   let config: jest.Mocked<ConfigService>;

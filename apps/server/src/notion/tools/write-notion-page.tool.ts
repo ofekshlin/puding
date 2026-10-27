@@ -1,11 +1,16 @@
 import { Injectable, Inject } from "@nestjs/common";
-import { GeminiTool } from "../../gemini/gemini-tool.interface";
+import {
+  GeminiTool,
+  ToolContext,
+  requireUserId,
+} from "../../gemini/gemini-tool.interface";
 import { NotionService } from "../notion.service";
 import { ServerMessage } from "../../types";
 
 @Injectable()
 export class WriteNotionPageTool extends GeminiTool {
   readonly name = "write_notion_page";
+  readonly requires = "notion" as const;
 
   readonly declaration = {
     name: this.name,
@@ -35,15 +40,25 @@ export class WriteNotionPageTool extends GeminiTool {
     super();
   }
 
-  async execute(args: { page_identifier: string; content: string }): Promise<{
+  async execute(
+    args: { page_identifier: string; content: string },
+    context?: ToolContext,
+  ): Promise<{
     output: any;
     clientIntegration?: Extract<
       ServerMessage,
       { type: "content" }
     >["integration"];
   }> {
-    const pageId = await this.notionService.resolveId(args.page_identifier);
-    const output = await this.notionService.writePage(pageId, args.content);
+    const pageId = await this.notionService.resolveId(
+      requireUserId(context),
+      args.page_identifier,
+    );
+    const output = await this.notionService.writePage(
+      requireUserId(context),
+      pageId,
+      args.content,
+    );
 
     return {
       output,

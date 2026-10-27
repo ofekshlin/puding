@@ -1,5 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import {
+  GeminiTool,
+  ToolContext,
+  requireUserId,
+} from "../../gemini/gemini-tool.interface";
 import { devinCard } from "../devin-card";
 import {
   AgentMessage,
@@ -19,6 +23,7 @@ const NAVIGATIONS = ["start", "next", "repeat", "previous", "outline"];
 @Injectable()
 export class ReadDevinMessageTool extends GeminiTool {
   readonly name = "read_devin_message";
+  readonly requires = "devin" as const;
   readonly instructions = DEVIN_TOOL_INSTRUCTIONS;
 
   readonly declaration = {
@@ -82,7 +87,9 @@ export class ReadDevinMessageTool extends GeminiTool {
     }
 
     const agentMessages = (
-      await this.codingAgent.getMessages(session.id, { last: 30 })
+      await this.codingAgent.getMessages(requireUserId(context), session.id, {
+        last: 30,
+      })
     ).filter((m) => m.from === "agent");
     const message = this.pick(agentMessages, what);
     if (!message) {

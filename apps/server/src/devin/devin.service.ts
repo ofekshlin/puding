@@ -1,9 +1,12 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "../config/config.service";
+import { CredentialStore } from "../credentials/credential-store";
+import { DevinSecret } from "../credentials/credential.types";
 import {
   AgentMessage,
   AgentSession,
   AgentSessionState,
+  AgentNotConnectedError,
   CodingAgentError,
   CodingAgentService,
   ListSessionsOptions,
@@ -56,30 +59,28 @@ export class DevinService extends CodingAgentService {
 
   constructor(
     @Inject(ConfigService) private readonly configService: ConfigService,
+    @Inject(CredentialStore) private readonly credentials: CredentialStore,
   ) {
     super();
-    if (this.isConfigured()) {
-      this.logger.log("DevinService initialized.");
-    } else {
-      this.logger.log(
-        "DEVIN_API_KEY or DEVIN_ORG_ID is not set: Devin integration disabled.",
-      );
-    }
   }
 
   isConfigured(): boolean {
-    return Boolean(
-      this.configService.getDevinApiKey() && this.configService.getDevinOrgId(),
+    return (
+      !this.configService.isPreview() ||
+      this.configService.isDevinEnabledInPreview()
     );
   }
 
-  async startSession(input: StartSessionInput): Promise<AgentSession> {
+  async startSession(
+    userId: string,
+    input: StartSessionInput,
+  ): Promise<AgentSession> {
     const task = input.task.trim();
     if (!task) {
       throw new CodingAgentError("I need a task to give Devin.");
     }
-    const repo = this.resolveRepo(input.repo);
-    await this.assertActiveSessionCapacity();
+    const repo = await this.resolveRepo(userId, input.repo);
+    await this.assertActiveSessionCapacity(userId);
 
     const body: Record<string, unknown> = {
       prompt: DevinService.buildPrompt(task, input.intent),
@@ -93,11 +94,19 @@ export class DevinService extends CodingAgentService {
     this.logger.log(
       `Starting Devin ${input.intent} session${repo ? ` on ${repo}` : ""}.`,
     );
-    const created = await this.request<DevinSession>("POST", "/sessions", body);
+    const created = await this.request<DevinSession>(
+      userId,
+      "POST",
+      "/sessions",
+      body,
+    );
     return DevinService.toAgentSession(created);
   }
 
-  async listSessions(opts: ListSessionsOptions = {}): Promise<AgentSession[]> {
+  async listSessions(
+    userId: string,
+    opts: ListSessionsOptions = {},
+  ): Promise<AgentSession[]> {
     const limit = opts.limit ?? DEFAULT_LIST_LIMIT;
     const onlyPuding = opts.onlyPuding ?? true;
     // Tag filtering on GET /sessions is not documented for v3, so the tag
@@ -108,6 +117,7 @@ export class DevinService extends CodingAgentService {
     if (onlyPuding) query.set("tags", PUDING_TAG);
 
     const page = await this.request<DevinSessionList>(
+      userId,
       "GET",
       `/sessions?${query.toString()}`,
     );
@@ -118,8 +128,9 @@ export class DevinService extends CodingAgentService {
       .slice(0, limit);
   }
 
-  async getSession(id: string): Promise<AgentSession> {
+  async getSession(userId: string, id: string): Promise<AgentSession> {
     const session = await this.request<DevinSession>(
+      userId,
       "GET",
       `/sessions/${DevinService.sessionPath(id)}`,
     );
@@ -127,6 +138,7 @@ export class DevinService extends CodingAgentService {
   }
 
   async getMessages(
+    userId: string,
     id: string,
     opts: { last?: number } = {},
   ): Promise<AgentMessage[]> {
@@ -138,6 +150,7 @@ export class DevinService extends CodingAgentService {
       if (cursor) query.set("after", cursor);
 
       const result = await this.request<DevinMessagePage>(
+        userId,
         "GET",
         `/sessions/${DevinService.sessionPath(id)}/messages?${query.toString()}`,
       );
@@ -155,12 +168,17 @@ export class DevinService extends CodingAgentService {
     return opts.last ? messages.slice(-opts.last) : messages;
   }
 
-  async sendMessage(id: string, text: string): Promise<AgentSession> {
+  async sendMessage(
+    userId: string,
+    id: string,
+    text: string,
+  ): Promise<AgentSession> {
     const message = text.trim();
     if (!message) {
       throw new CodingAgentError("There's nothing to send to Devin.");
     }
     const session = await this.request<DevinSession>(
+      userId,
       "POST",
       `/sessions/${DevinService.sessionPath(id)}/messages`,
       { message },
@@ -168,8 +186,9 @@ export class DevinService extends CodingAgentService {
     return DevinService.toAgentSession(session);
   }
 
-  async stopSession(id: string): Promise<void> {
+  async stopSession(userId: string, id: string): Promise<void> {
     await this.request<unknown>(
+      userId,
       "DELETE",
       `/sessions/${DevinService.sessionPath(id)}`,
     );
@@ -234,12 +253,20 @@ export class DevinService extends CodingAgentService {
     }
   }
 
-  private resolveRepo(spoken?: string): string | undefined {
+  private async resolveRepo(
+    userId: string,
+    spoken?: string,
+  ): Promise<string | undefined> {
+    const settings = (await this.credentials.get(userId, "devin"))?.settings;
     const name = spoken?.trim();
-    if (!name) return this.configService.getDevinDefaultRepo();
+    if (!name) {
+      return typeof settings?.defaultRepo === "string" && settings.defaultRepo
+        ? settings.defaultRepo
+        : undefined;
+    }
     if (name.includes("/")) return name;
 
-    const aliases = this.configService.getDevinRepoAliases();
+    const aliases = DevinService.aliasesFrom(settings?.repoAliases);
     const repo = aliases[name.toLowerCase()];
     if (repo) return repo;
 
@@ -251,10 +278,22 @@ export class DevinService extends CodingAgentService {
     );
   }
 
-  private async assertActiveSessionCapacity(): Promise<void> {
+  private static aliasesFrom(value: unknown): Record<string, string> {
+    if (!value || typeof value !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, repo]) => typeof repo === "string")
+        .map(([alias, repo]) => [alias.toLowerCase(), repo as string]),
+    );
+  }
+
+  private async assertActiveSessionCapacity(userId: string): Promise<void> {
     const max = this.configService.getDevinMaxActiveSessions();
     const working = (
-      await this.listSessions({ onlyPuding: true, limit: LIST_PAGE_SIZE })
+      await this.listSessions(userId, {
+        onlyPuding: true,
+        limit: LIST_PAGE_SIZE,
+      })
     ).filter((s) => s.state === "working");
     if (working.length >= max) {
       throw new CodingAgentError(
@@ -263,16 +302,22 @@ export class DevinService extends CodingAgentService {
     }
   }
 
+  private async secretFor(userId: string): Promise<DevinSecret> {
+    if (!this.isConfigured()) {
+      throw new CodingAgentError("Devin is turned off on this Puding server.");
+    }
+    const credential = await this.credentials.get(userId, "devin");
+    if (!credential) throw new AgentNotConnectedError();
+    return credential.secret;
+  }
+
   private async request<T>(
+    userId: string,
     method: "GET" | "POST" | "DELETE",
     path: string,
     body?: unknown,
   ): Promise<T> {
-    const apiKey = this.configService.getDevinApiKey();
-    const orgId = this.configService.getDevinOrgId();
-    if (!apiKey || !orgId) {
-      throw new CodingAgentError("Devin isn't set up on this Puding server.");
-    }
+    const { apiKey, orgId } = await this.secretFor(userId);
 
     const url = `${DEVIN_API_BASE}/${encodeURIComponent(orgId)}${path}`;
     let response: Response;

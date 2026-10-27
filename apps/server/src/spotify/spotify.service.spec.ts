@@ -83,7 +83,9 @@ describe("SpotifyService", () => {
   it("should map the first search result to a track", async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse(trackPayload) as any);
 
-    await expect(service.searchTrack("bohemian rhapsody")).resolves.toEqual({
+    await expect(
+      service.searchTrack("u1", "bohemian rhapsody"),
+    ).resolves.toEqual({
       id: "track-id",
       uri: "spotify:track:track-id",
       name: "Bohemian Rhapsody",
@@ -102,7 +104,7 @@ describe("SpotifyService", () => {
       jsonResponse({ tracks: { items: [] } }) as any,
     );
 
-    await expect(service.searchTrack("nonexistent")).rejects.toThrow(
+    await expect(service.searchTrack("u1", "nonexistent")).rejects.toThrow(
       'No track matching "nonexistent" was found on Spotify.',
     );
   });
@@ -113,7 +115,7 @@ describe("SpotifyService", () => {
       .mockResolvedValueOnce(jsonResponse(devicesPayload) as any)
       .mockResolvedValueOnce(emptyResponse() as any);
 
-    const result = await service.playTrack("bohemian rhapsody");
+    const result = await service.playTrack("u1", "bohemian rhapsody");
 
     expect(result.device).toBe("Desktop");
     const [playUrl, playInit] = fetchSpy.mock.calls[2];
@@ -132,7 +134,7 @@ describe("SpotifyService", () => {
       .mockResolvedValueOnce(jsonResponse(devicesPayload) as any)
       .mockResolvedValueOnce(emptyResponse() as any);
 
-    const result = await service.playTrack("bohemian rhapsody", "phone");
+    const result = await service.playTrack("u1", "bohemian rhapsody", "phone");
 
     expect(result.device).toBe("Phone");
     expect(fetchSpy.mock.calls[2][0]).toContain("device_id=device-1");
@@ -143,7 +145,7 @@ describe("SpotifyService", () => {
       .mockResolvedValueOnce(jsonResponse(trackPayload) as any)
       .mockResolvedValueOnce(jsonResponse({ devices: [] }) as any);
 
-    await expect(service.playTrack("bohemian rhapsody")).rejects.toThrow(
+    await expect(service.playTrack("u1", "bohemian rhapsody")).rejects.toThrow(
       "No active Spotify device was found. Open Spotify on a device and try again.",
     );
   });
@@ -154,7 +156,7 @@ describe("SpotifyService", () => {
       .mockResolvedValueOnce(jsonResponse(devicesPayload) as any)
       .mockResolvedValueOnce(emptyResponse() as any);
 
-    await service.queueTrack("bohemian rhapsody");
+    await service.queueTrack("u1", "bohemian rhapsody");
 
     const [queueUrl, queueInit] = fetchSpy.mock.calls[2];
     expect(queueUrl).toContain("/me/player/queue?");
@@ -173,11 +175,15 @@ describe("SpotifyService", () => {
         }) as any,
       )
       .mockResolvedValueOnce(
-        jsonResponse({ items: [{ id: "pl-2", name: "Focus" }], next: null }) as any,
+        jsonResponse({
+          items: [{ id: "pl-2", name: "Focus" }],
+          next: null,
+        }) as any,
       )
       .mockResolvedValueOnce(jsonResponse({ snapshot_id: "snap" }, 201) as any);
 
     const result = await service.addTrackToPlaylist(
+      "u1",
       "bohemian rhapsody",
       "focus",
     );
@@ -194,11 +200,14 @@ describe("SpotifyService", () => {
     fetchSpy
       .mockResolvedValueOnce(jsonResponse(trackPayload) as any)
       .mockResolvedValueOnce(
-        jsonResponse({ items: [{ id: "pl-1", name: "Chill" }], next: null }) as any,
+        jsonResponse({
+          items: [{ id: "pl-1", name: "Chill" }],
+          next: null,
+        }) as any,
       );
 
     await expect(
-      service.addTrackToPlaylist("bohemian rhapsody", "Focus"),
+      service.addTrackToPlaylist("u1", "bohemian rhapsody", "Focus"),
     ).rejects.toThrow('No Spotify playlist named "Focus" was found.');
   });
 
@@ -207,17 +216,17 @@ describe("SpotifyService", () => {
       .mockResolvedValueOnce(errorResponse(401, "expired") as any)
       .mockResolvedValueOnce(jsonResponse(trackPayload) as any);
 
-    await expect(service.searchTrack("bohemian rhapsody")).resolves.toEqual(
-      expect.objectContaining({ name: "Bohemian Rhapsody" }),
-    );
+    await expect(
+      service.searchTrack("u1", "bohemian rhapsody"),
+    ).resolves.toEqual(expect.objectContaining({ name: "Bohemian Rhapsody" }));
     expect(mockAuthService.refreshAccessToken).toHaveBeenCalledTimes(1);
   });
 
   it("should translate 403 into a Premium requirement message", async () => {
     fetchSpy.mockResolvedValueOnce(errorResponse(403, "forbidden") as any);
 
-    await expect(service.searchTrack("bohemian rhapsody")).rejects.toThrow(
-      "Playback control requires a Spotify Premium account.",
-    );
+    await expect(
+      service.searchTrack("u1", "bohemian rhapsody"),
+    ).rejects.toThrow("Playback control requires a Spotify Premium account.");
   });
 });

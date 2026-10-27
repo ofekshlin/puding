@@ -1,5 +1,13 @@
 import { Injectable, Inject } from "@nestjs/common";
-import { GeminiTool } from "../../gemini/gemini-tool.interface";
+import { ConfigService } from "../../config/config.service";
+import { UsageLimiter } from "../../database/usage-limiter";
+import {
+  GeminiTool,
+  ToolContext,
+  requireUserId,
+} from "../../gemini/gemini-tool.interface";
+
+export const SEARCH_METRIC = "tavily_search";
 import { SearchService } from "../search-service.interface";
 import { ServerMessage } from "../../types";
 
@@ -25,17 +33,35 @@ export class SearchWebTool extends GeminiTool {
 
   constructor(
     @Inject(SearchService) private readonly searchService: SearchService,
+    @Inject(UsageLimiter) private readonly usage: UsageLimiter,
+    @Inject(ConfigService) private readonly config: ConfigService,
   ) {
     super();
   }
 
-  async execute(args: { query: string }): Promise<{
+  async execute(
+    args: { query: string },
+    context?: ToolContext,
+  ): Promise<{
     output: any;
     clientIntegration?: Extract<
       ServerMessage,
       { type: "content" }
     >["integration"];
   }> {
+    const allowed = await this.usage.tryConsume(
+      requireUserId(context),
+      SEARCH_METRIC,
+      this.config.getTavilyDailyLimitPerUser(),
+    );
+    if (!allowed) {
+      return {
+        output: {
+          error:
+            "The daily web search limit for this user is used up. Tell the user it resets tomorrow.",
+        },
+      };
+    }
     const results = await this.searchService.search(args.query);
 
     return {

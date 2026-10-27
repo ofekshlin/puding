@@ -141,6 +141,7 @@ export function useLiveSession({
 
     let rejected = false;
     let rejectReason: string | undefined;
+    let connectionsChanged = false;
 
     ws.onopen = () => {
       clearWakingTimer();
@@ -169,6 +170,12 @@ export function useLiveSession({
         if (msg.type === "unauthorized") {
           rejected = true;
           rejectReason = msg.reason;
+        } else if (msg.type === "connections_changed") {
+          connectionsChanged = true;
+        } else if (msg.type === "too_many_sessions") {
+          addLog(
+            `You already have ${msg.limit} Puding sessions open. Close one and try again.`,
+          );
         } else if (msg.type === "setup_complete") {
           expiredRetriesRef.current = 0;
           addLog("Gemini setup complete. Start talking!");
@@ -293,7 +300,10 @@ export function useLiveSession({
     ws.onclose = (event) => {
       clearWakingTimer();
       setStatus("disconnected");
-      if (
+      if (connectionsChanged) {
+        addLog("Your connected services changed, reconnecting...");
+        void connectRef.current?.();
+      } else if (
         authEnabled &&
         rejectReason === "expired" &&
         expiredRetriesRef.current < 1

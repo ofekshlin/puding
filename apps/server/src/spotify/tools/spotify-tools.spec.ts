@@ -14,6 +14,7 @@ const track = {
 };
 
 describe("Spotify tools", () => {
+  const ctx = { sessionId: "s", userId: "u1" };
   let playTool: PlaySongTool;
   let queueTool: QueueSongTool;
   let playlistTool: AddSongToPlaylistTool;
@@ -60,12 +61,16 @@ describe("Spotify tools", () => {
   it("should play a song and emit a Spotify integration payload", async () => {
     mockMusicService.playTrack.mockResolvedValue({ track, device: "Desktop" });
 
-    const result = await playTool.execute({
-      query: "bohemian rhapsody",
-      device_name: "Desktop",
-    });
+    const result = await playTool.execute(
+      {
+        query: "bohemian rhapsody",
+        device_name: "Desktop",
+      },
+      ctx,
+    );
 
     expect(mockMusicService.playTrack).toHaveBeenCalledWith(
+      "u1",
       "bohemian rhapsody",
       "Desktop",
     );
@@ -91,9 +96,10 @@ describe("Spotify tools", () => {
   it("should queue a song", async () => {
     mockMusicService.queueTrack.mockResolvedValue({ track, device: "Phone" });
 
-    const result = await queueTool.execute({ query: "bohemian rhapsody" });
+    const result = await queueTool.execute({ query: "bohemian rhapsody" }, ctx);
 
     expect(mockMusicService.queueTrack).toHaveBeenCalledWith(
+      "u1",
       "bohemian rhapsody",
     );
     expect(result.output.status).toBe("queued");
@@ -108,12 +114,16 @@ describe("Spotify tools", () => {
       playlist: { id: "pl-1", name: "Focus" },
     });
 
-    const result = await playlistTool.execute({
-      query: "bohemian rhapsody",
-      playlist_name: "Focus",
-    });
+    const result = await playlistTool.execute(
+      {
+        query: "bohemian rhapsody",
+        playlist_name: "Focus",
+      },
+      ctx,
+    );
 
     expect(mockMusicService.addTrackToPlaylist).toHaveBeenCalledWith(
+      "u1",
       "bohemian rhapsody",
       "Focus",
     );
@@ -136,7 +146,7 @@ describe("Spotify tools", () => {
       new Error("No active Spotify device was found."),
     );
 
-    await expect(playTool.execute({ query: "anything" })).rejects.toThrow(
+    await expect(playTool.execute({ query: "anything" }, ctx)).rejects.toThrow(
       "No active Spotify device was found.",
     );
   });

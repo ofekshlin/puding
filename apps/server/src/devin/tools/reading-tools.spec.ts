@@ -21,7 +21,7 @@ const QUESTION =
   "Should the theme follow the system setting?\n1. Always follow the system.\n2. Default to the system but allow an override.\nI recommend option 2.";
 
 describe("Devin reading tools", () => {
-  const ctx = { sessionId: "conv" };
+  const ctx = { sessionId: "conv", userId: "u1" };
   let agent: jest.Mocked<CodingAgentService>;
   let resolver: SessionResolver;
   let reader: SpokenReader;
@@ -103,6 +103,7 @@ describe("Devin reading tools", () => {
       ctx,
     );
     expect(agent.sendMessage).toHaveBeenCalledWith(
+      "u1",
       "devin-dark",
       "Option 2: Default to the system but allow an override.\n\nand default to dark",
     );
@@ -112,6 +113,7 @@ describe("Devin reading tools", () => {
   it("parses the latest message when the question wasn't read first", async () => {
     await answer.execute({ session: "it", choice: "one" }, ctx);
     expect(agent.sendMessage).toHaveBeenCalledWith(
+      "u1",
       "devin-dark",
       "Option 1: Always follow the system.",
     );
@@ -127,6 +129,7 @@ describe("Devin reading tools", () => {
 
     await answer.execute({ session: "it", extra: "Neither, use Redis" }, ctx);
     expect(agent.sendMessage).toHaveBeenCalledWith(
+      "u1",
       "devin-dark",
       "Neither, use Redis",
     );

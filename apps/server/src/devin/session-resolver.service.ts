@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { ToolContext } from "../gemini/gemini-tool.interface";
+import { ToolContext, requireUserId } from "../gemini/gemini-tool.interface";
 import { AgentSession, CodingAgentService } from "./coding-agent.interface";
 
 export type ResolveResult =
@@ -116,7 +116,7 @@ export class SessionResolver {
     if (literal) {
       return this.resolved(
         context,
-        await this.codingAgent.getSession(literal[0]),
+        await this.codingAgent.getSession(requireUserId(context), literal[0]),
       );
     }
 
@@ -124,7 +124,10 @@ export class SessionResolver {
       if (state.focusId) {
         return this.resolved(
           context,
-          await this.codingAgent.getSession(state.focusId),
+          await this.codingAgent.getSession(
+            requireUserId(context),
+            state.focusId,
+          ),
         );
       }
       return this.latest(context);
@@ -136,7 +139,9 @@ export class SessionResolver {
     if (ordinal !== undefined) {
       const list = state.lastList.length
         ? state.lastList
-        : await this.codingAgent.listSessions({ limit: 10 });
+        : await this.codingAgent.listSessions(requireUserId(context), {
+            limit: 10,
+          });
       const picked = list[ordinal - 1];
       if (!picked) {
         return {
@@ -153,7 +158,10 @@ export class SessionResolver {
   private async latest(
     context: ToolContext | undefined,
   ): Promise<ResolveResult> {
-    const [latest] = await this.codingAgent.listSessions({ limit: 1 });
+    const [latest] = await this.codingAgent.listSessions(
+      requireUserId(context),
+      { limit: 1 },
+    );
     if (!latest) {
       return {
         status: "not_found",
@@ -175,7 +183,7 @@ export class SessionResolver {
       };
     }
 
-    const pool = await this.codingAgent.listSessions({
+    const pool = await this.codingAgent.listSessions(requireUserId(context), {
       onlyPuding: false,
       limit: FUZZY_POOL_SIZE,
     });
