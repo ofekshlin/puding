@@ -1,6 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common";
 import dotenv from "dotenv";
 import path from "path";
+import {
+  ENV_CREDENTIAL_SCOPES,
+  EnvCredentialScope,
+} from "../credentials/credential.types";
 
 @Injectable()
 export class ConfigService {
@@ -25,6 +29,9 @@ export class ConfigService {
   private readonly devinMaxActiveSessions: number;
   private readonly devinEnabledInPreview: boolean;
   private readonly devinPollIntervalMs: number;
+  private readonly databaseUrl?: string;
+  private readonly credentialsEncryptionKeys?: string;
+  private readonly envCredentialsScope: EnvCredentialScope;
 
   // Define required environment variables here for easy extension
   private readonly requiredEnvVars = ["GEMINI_API_KEY", "NOTION_TOKEN"];
@@ -69,6 +76,26 @@ export class ConfigService {
       ConfigService.parsePositiveInt(process.env.DEVIN_POLL_INTERVAL_MS, 20000),
       5000,
     );
+    this.databaseUrl = process.env.DATABASE_URL || undefined;
+    this.credentialsEncryptionKeys =
+      process.env.CREDENTIALS_ENCRYPTION_KEYS || undefined;
+    this.envCredentialsScope = this.parseEnvCredentialsScope(
+      process.env.ENV_CREDENTIALS_FOR,
+    );
+  }
+
+  private parseEnvCredentialsScope(
+    raw: string | undefined,
+  ): EnvCredentialScope {
+    const value = (raw ?? "").trim().toLowerCase();
+    if (!value) return "none";
+    if ((ENV_CREDENTIAL_SCOPES as readonly string[]).includes(value)) {
+      return value as EnvCredentialScope;
+    }
+    this.logger.warn(
+      `ENV_CREDENTIALS_FOR="${raw}" is not one of ${ENV_CREDENTIAL_SCOPES.join(", ")}; using "none".`,
+    );
+    return "none";
   }
 
   private static parsePositiveInt(
@@ -238,5 +265,26 @@ export class ConfigService {
    */
   public getDevinPollIntervalMs(): number {
     return this.devinPollIntervalMs;
+  }
+
+  /**
+   * Retrieves the Postgres connection string; unset means no database.
+   */
+  public getDatabaseUrl(): string | undefined {
+    return this.databaseUrl;
+  }
+
+  /**
+   * Retrieves the `version:base64key` list used to encrypt stored credentials.
+   */
+  public getCredentialsEncryptionKeys(): string | undefined {
+    return this.credentialsEncryptionKeys;
+  }
+
+  /**
+   * Which users may fall back to the server's env credentials when a database exists.
+   */
+  public getEnvCredentialsScope(): EnvCredentialScope {
+    return this.envCredentialsScope;
   }
 }
