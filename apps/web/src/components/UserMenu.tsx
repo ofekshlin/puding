@@ -20,42 +20,51 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   pendingRequests = 0,
 }) => {
   const label = user.name || user.email || "Signed in";
+  const badge = isAdmin && pendingRequests > 0 && (
+    <span className="badge" aria-label={`${pendingRequests} waiting requests`}>
+      {pendingRequests}
+    </span>
+  );
   return (
-    <div className="user-menu">
-      {user.image ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={user.image}
-          alt=""
-          className="user-avatar"
-          referrerPolicy="no-referrer"
-        />
-      ) : (
-        <span className="user-avatar user-avatar-fallback" aria-hidden>
-          {label.charAt(0).toUpperCase()}
+    <details className="user-menu">
+      <summary className="user-menu-trigger" aria-label={`Account: ${label}`}>
+        {user.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={user.image}
+            alt=""
+            className="user-avatar"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <span className="user-avatar user-avatar-fallback" aria-hidden>
+            {label.charAt(0).toUpperCase()}
+          </span>
+        )}
+        <span className="user-menu-name">{label}</span>
+        {badge}
+        <span className="user-menu-chevron" aria-hidden>
+          ▾
         </span>
-      )}
-      <span className="user-menu-name" title={user.email ?? undefined}>
-        {label}
-      </span>
-      {isAdmin && (
-        <a href="/admin" className="btn btn-secondary btn-sm admin-link">
-          Admin
-          {pendingRequests > 0 && (
-            <span
-              className="badge"
-              aria-label={`${pendingRequests} waiting requests`}
-            >
-              {pendingRequests}
-            </span>
-          )}
-        </a>
-      )}
-      <form action={signOutOfPuding}>
-        <button type="submit" className="btn btn-secondary btn-sm">
-          Sign out
-        </button>
-      </form>
-    </div>
+      </summary>
+      <div className="user-menu-panel">
+        <div className="user-menu-identity">
+          <span className="user-menu-status">Signed in as</span>
+          {user.name && <strong>{user.name}</strong>}
+          {user.email && <span className="user-menu-email">{user.email}</span>}
+        </div>
+        {isAdmin && (
+          <a href="/admin" className="btn btn-secondary btn-sm admin-link">
+            Admin
+            {badge}
+          </a>
+        )}
+        <form action={signOutOfPuding}>
+          <button type="submit" className="btn btn-secondary btn-sm">
+            Sign out
+          </button>
+        </form>
+      </div>
+    </details>
   );
 };
