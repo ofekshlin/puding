@@ -46,6 +46,30 @@ describe("PostgresUserDirectory", () => {
     });
   });
 
+  it("records access requests and admin decisions", async () => {
+    const friend = await users.upsertFromGoogle(
+      { googleSub: "g-3", email: "asker@example.com" },
+      { role: "user", status: "pending" },
+    );
+    const asked = await users.recordAccessRequest(friend.id, "hi, it's me");
+    expect(asked).toMatchObject({ requestNote: "hi, it's me" });
+    expect(asked?.requestedAt).toBeDefined();
+    expect((await users.list("pending")).map((u) => u.id)).toContain(friend.id);
+
+    const promoted = await users.update(friend.id, { status: "approved" });
+    expect(promoted).toMatchObject({ status: "approved" });
+    expect(promoted?.decidedAt).toBeUndefined();
+
+    const decided = await users.update(friend.id, {
+      status: "rejected",
+      decidedBy: null,
+    });
+    expect(decided).toMatchObject({ status: "rejected" });
+    expect(decided?.decidedAt).toBeDefined();
+    expect(await users.update("local", { status: "approved" })).toBeNull();
+    expect(await users.recordAccessRequest("local", null)).toBeNull();
+  });
+
   it("returns null for unknown or non-UUID ids", async () => {
     expect(await users.findById("local")).toBeNull();
     expect(

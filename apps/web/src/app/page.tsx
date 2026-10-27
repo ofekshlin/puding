@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "../auth";
+import { AccountGate } from "../components/AccountGate";
 import { VoiceApp } from "../components/VoiceApp";
 import { isAuthConfigured } from "../lib/authConfig";
 
@@ -12,7 +13,7 @@ export default async function Home() {
   if (!user) redirect("/signin");
 
   return (
-    <VoiceApp
+    <AccountGate
       user={{ name: user.name, email: user.email, image: user.image }}
     />
   );

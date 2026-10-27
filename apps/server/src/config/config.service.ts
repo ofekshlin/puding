@@ -6,6 +6,11 @@ import {
   EnvCredentialScope,
 } from "../credentials/credential.types";
 
+export const SIGNUP_MODES = ["allowlist", "request", "open"] as const;
+export type SignupMode = (typeof SIGNUP_MODES)[number];
+
+const DEFAULT_WEB_ORIGIN = "http://localhost:6600";
+
 @Injectable()
 export class ConfigService {
   private readonly logger = new Logger(ConfigService.name);
@@ -34,6 +39,9 @@ export class ConfigService {
   private readonly envCredentialsScope: EnvCredentialScope;
   private readonly pudingAuthSecret?: string;
   private readonly adminEmails: string[];
+  private readonly signupMode: SignupMode;
+  private readonly allowedEmails: string[];
+  private readonly webOrigins: string[];
 
   // Define required environment variables here for easy extension
   private readonly requiredEnvVars = ["GEMINI_API_KEY", "NOTION_TOKEN"];
@@ -86,6 +94,24 @@ export class ConfigService {
     );
     this.pudingAuthSecret = process.env.PUDING_AUTH_SECRET || undefined;
     this.adminEmails = ConfigService.parseEmails(process.env.ADMIN_EMAILS);
+    this.signupMode = this.parseSignupMode(process.env.SIGNUP_MODE);
+    this.allowedEmails = ConfigService.parseEmails(process.env.ALLOWED_EMAILS);
+    this.webOrigins = (process.env.WEB_ORIGIN || DEFAULT_WEB_ORIGIN)
+      .split(",")
+      .map((origin) => origin.trim().replace(/\/+$/, ""))
+      .filter(Boolean);
+  }
+
+  private parseSignupMode(raw: string | undefined): SignupMode {
+    const value = (raw ?? "").trim().toLowerCase();
+    if (!value) return "request";
+    if ((SIGNUP_MODES as readonly string[]).includes(value)) {
+      return value as SignupMode;
+    }
+    this.logger.warn(
+      `SIGNUP_MODE="${raw}" is not one of ${SIGNUP_MODES.join(", ")}; using "request".`,
+    );
+    return "request";
   }
 
   private static parseEmails(raw: string | undefined): string[] {
@@ -311,5 +337,20 @@ export class ConfigService {
    */
   public getAdminEmails(): string[] {
     return [...this.adminEmails];
+  }
+
+  /** How new Google accounts are admitted (`SIGNUP_MODE`, default `request`). */
+  public getSignupMode(): SignupMode {
+    return this.signupMode;
+  }
+
+  /** Emails approved on first sign-in in `allowlist` mode (`ALLOWED_EMAILS`). */
+  public getAllowedEmails(): string[] {
+    return [...this.allowedEmails];
+  }
+
+  /** Web app origins allowed by CORS (`WEB_ORIGIN`, comma-separated). */
+  public getWebOrigins(): string[] {
+    return [...this.webOrigins];
   }
 }

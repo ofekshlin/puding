@@ -8,6 +8,7 @@ import {
   UserDirectory,
   UserStatus,
 } from "../users/user-directory";
+import { SignupPolicy } from "../users/signup-policy";
 import { AccessGuard } from "./access-guard.service";
 
 export const PUDING_TOKEN_AUDIENCE = "puding-backend";
@@ -29,13 +30,13 @@ export type AuthResult =
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly secret?: Uint8Array;
-  private readonly adminEmails: Set<string>;
   private readonly cache = new Map<string, { user: PudingUser; at: number }>();
 
   constructor(
     @Inject(ConfigService) config: ConfigService,
     @Inject(UserDirectory) private readonly users: UserDirectory,
     @Inject(AccessGuard) private readonly accessGuard: AccessGuard,
+    @Inject(SignupPolicy) private readonly policy: SignupPolicy,
   ) {
     const secret = config.getPudingAuthSecret();
     if (secret) {
@@ -50,7 +51,6 @@ export class AuthService {
         "PUDING_AUTH_SECRET is not set: Google sign-in is off and clients use the legacy access token.",
       );
     }
-    this.adminEmails = new Set(config.getAdminEmails());
   }
 
   /** True once Google sign-in tokens are required. */
@@ -126,22 +126,23 @@ export class AuthService {
       return { ok: true, user: cached.user };
     }
 
-    const user = await this.users.upsertFromGoogle(
+    const stored = await this.users.upsertFromGoogle(
       {
         googleSub: claims.sub,
         email: claims.email,
         name: claims.name,
         pictureUrl: claims.picture,
       },
-      this.defaultsFor(claims.email),
+      this.policy.defaultsFor(claims.email),
     );
+    const change = this.policy.reconcile(stored);
+    const user = change
+      ? ((await this.users.update(stored.id, change)) ?? {
+          ...stored,
+          ...change,
+        })
+      : stored;
     this.cache.set(claims.sub, { user, at: Date.now() });
     return { ok: true, user };
-  }
-
-  private defaultsFor(email: string): NewUserDefaults {
-    return this.adminEmails.has(email.toLowerCase())
-      ? { role: "admin", status: "approved" }
-      : { role: "user", status: "pending" };
   }
 }

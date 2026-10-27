@@ -8,6 +8,19 @@ export interface PudingUser {
   pictureUrl?: string;
   role: UserRole;
   status: UserStatus;
+  /** Optional "who are you?" note sent with an access request. */
+  requestNote?: string;
+  /** ISO timestamps; set only for stored accounts. */
+  requestedAt?: string;
+  createdAt?: string;
+  decidedAt?: string;
+}
+
+/** An access change; passing `decidedBy` records it as an admin decision. */
+export interface UserAccessUpdate {
+  role?: UserRole;
+  status?: UserStatus;
+  decidedBy?: string | null;
 }
 
 export interface GoogleProfile {
@@ -37,4 +50,19 @@ export abstract class UserDirectory {
     profile: GoogleProfile,
     defaults: NewUserDefaults,
   ): Promise<PudingUser>;
+
+  /** Stored users, newest first, optionally filtered by status. */
+  abstract list(status?: UserStatus): Promise<PudingUser[]>;
+
+  /** Changes role/status; returns null when the user is not stored. */
+  abstract update(
+    id: string,
+    patch: UserAccessUpdate,
+  ): Promise<PudingUser | null>;
+
+  /** Records an access request (with an optional note); null when not stored. */
+  abstract recordAccessRequest(
+    id: string,
+    note: string | null,
+  ): Promise<PudingUser | null>;
 }

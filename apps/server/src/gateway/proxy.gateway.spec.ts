@@ -7,6 +7,7 @@ import {
 import { ConfigService } from "../config/config.service";
 import { SessionTracker } from "../session/session-tracker.interface";
 import { AuthService } from "../auth/auth.service";
+import { UserAccessEvents } from "../auth/user-access-events";
 import { LOCAL_USER } from "../users/env-user-directory";
 import WebSocket from "ws";
 import { EventEmitter } from "events";
@@ -70,6 +71,7 @@ describe("ProxyGateway (Unit)", () => {
           provide: AuthService,
           useValue: mockAuthService,
         },
+        UserAccessEvents,
       ],
     }).compile();
 
@@ -280,5 +282,37 @@ describe("ProxyGateway (Unit)", () => {
     gateway.handleDisconnect(mockSocket);
 
     expect(mockLiveSession.destroy).toHaveBeenCalled();
+  });
+
+  it("closes a revoked user's sockets and leaves others alone", async () => {
+    jest.useFakeTimers();
+    const socketFor = () => {
+      const socket = new EventEmitter() as any;
+      socket.send = jest.fn();
+      socket.close = jest.fn();
+      return socket;
+    };
+    const mockReq = {
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+    const mine = socketFor();
+    const theirs = socketFor();
+    await gateway.handleConnection(mine, mockReq);
+    mockAuthService.authenticate.mockResolvedValueOnce({
+      ok: true,
+      user: { ...LOCAL_USER, id: "someone-else" },
+    });
+    await gateway.handleConnection(theirs, mockReq);
+
+    gateway.disconnectUser(LOCAL_USER.id);
+    jest.runAllTimers();
+    jest.useRealTimers();
+
+    expect(mine.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: "unauthorized", reason: "rejected" }),
+    );
+    expect(mine.close).toHaveBeenCalled();
+    expect(theirs.send).not.toHaveBeenCalled();
+    expect(theirs.close).not.toHaveBeenCalled();
   });
 });

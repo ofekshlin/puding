@@ -30,6 +30,7 @@ export const users = pgTable("users", {
     enum: ["pending", "approved", "rejected"],
   }).notNull(),
   requestNote: text("request_note"),
+  requestedAt: timestamp("requested_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

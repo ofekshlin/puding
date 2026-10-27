@@ -3,6 +3,7 @@ import {
   NewUserDefaults,
   PudingUser,
   UserDirectory,
+  UserStatus,
 } from "./user-directory";
 
 export const LOCAL_USER: Readonly<PudingUser> = Object.freeze({
@@ -40,5 +41,18 @@ export class EnvUserDirectory extends UserDirectory {
       pictureUrl: profile.pictureUrl,
       ...defaults,
     };
+  }
+
+  public async list(status?: UserStatus): Promise<PudingUser[]> {
+    return !status || status === LOCAL_USER.status ? [{ ...LOCAL_USER }] : [];
+  }
+
+  /** Accounts other than `local` are never stored without a database. */
+  public async update(): Promise<PudingUser | null> {
+    return null;
+  }
+
+  public async recordAccessRequest(): Promise<PudingUser | null> {
+    return null;
   }
 }

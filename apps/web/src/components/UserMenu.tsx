@@ -7,7 +7,18 @@ export interface SignedInUser {
   image?: string | null;
 }
 
-export const UserMenu: React.FC<{ user: SignedInUser }> = ({ user }) => {
+export interface UserMenuProps {
+  user: SignedInUser;
+  /** Admins get a link to `/admin`, badged with waiting requests. */
+  isAdmin?: boolean;
+  pendingRequests?: number;
+}
+
+export const UserMenu: React.FC<UserMenuProps> = ({
+  user,
+  isAdmin,
+  pendingRequests = 0,
+}) => {
   const label = user.name || user.email || "Signed in";
   return (
     <div className="user-menu">
@@ -27,6 +38,19 @@ export const UserMenu: React.FC<{ user: SignedInUser }> = ({ user }) => {
       <span className="user-menu-name" title={user.email ?? undefined}>
         {label}
       </span>
+      {isAdmin && (
+        <a href="/admin" className="btn btn-secondary btn-sm admin-link">
+          Admin
+          {pendingRequests > 0 && (
+            <span
+              className="badge"
+              aria-label={`${pendingRequests} waiting requests`}
+            >
+              {pendingRequests}
+            </span>
+          )}
+        </a>
+      )}
       <form action={signOutOfPuding}>
         <button type="submit" className="btn btn-secondary btn-sm">
           Sign out

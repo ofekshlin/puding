@@ -20,9 +20,18 @@ const ACCESS_DENIED_MESSAGES: Record<AccessDeniedReason, string> = {
 export interface VoiceAppProps {
   /** Set when Google sign-in is on; the legacy access token is used otherwise. */
   user?: SignedInUser;
+  /** Re-checks the account when the server turns the session away. */
+  onAccessDenied?: () => void;
+  isAdmin?: boolean;
+  pendingRequests?: number;
 }
 
-export function VoiceApp({ user }: VoiceAppProps) {
+export function VoiceApp({
+  user,
+  onAccessDenied,
+  isAdmin,
+  pendingRequests,
+}: VoiceAppProps) {
   const {
     status,
     isRecording,
@@ -39,10 +48,20 @@ export function VoiceApp({ user }: VoiceAppProps) {
     sendTextMessage,
   } = useLiveSession({ authEnabled: Boolean(user) });
 
+  React.useEffect(() => {
+    if (accessDenied) onAccessDenied?.();
+  }, [accessDenied, onAccessDenied]);
+
   return (
     <div className="container">
       <main className="card">
-        {user && <UserMenu user={user} />}
+        {user && (
+          <UserMenu
+            user={user}
+            isAdmin={isAdmin}
+            pendingRequests={pendingRequests}
+          />
+        )}
 
         <header className="logo-container">
           <h1 className="title">Puding 🍮</h1>
