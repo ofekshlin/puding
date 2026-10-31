@@ -54,7 +54,7 @@ export function VoiceApp({
 
   return (
     <div className="container">
-      <main className="card">
+      <main className="card voice-card">
         {user && (
           <UserMenu
             user={user}
