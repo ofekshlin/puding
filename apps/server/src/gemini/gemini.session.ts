@@ -9,6 +9,7 @@ import {
 import { LiveSession } from "../session/live-session.interface";
 import { SessionTracker } from "../session/session-tracker.interface";
 import { GeminiTool } from "./gemini-tool.interface";
+import { ResolvedSessionTools } from "./session-tool-resolver";
 import {
   DevinSessionUpdate,
   DevinUpdateSubscriber,
@@ -46,24 +47,57 @@ export class GeminiSession implements LiveSession, DevinUpdateSubscriber {
   private lastUserSpeechAt = 0;
   private readonly pendingNotes: string[] = [];
   private noteTimer?: NodeJS.Timeout;
-  private readonly unsubscribeDevin?: () => void;
+  private unsubscribeDevin?: () => void;
+  private destroyed = false;
+  /** Fixed for the session's lifetime; a connection change reconnects. */
+  private tools: GeminiTool[] = [];
+  private toolNote?: string;
+  private toolsResolved = false;
+  private readonly toolsReady: Promise<void>;
 
   constructor(
     private readonly clientWs: WebSocket,
     private readonly apiKey: string,
     public readonly sessionId: string,
+    public readonly userId: string,
     private readonly sessionTracker: SessionTracker,
-    private readonly tools: GeminiTool[],
+    toolsSource: GeminiTool[] | Promise<ResolvedSessionTools>,
     devinUpdates?: DevinUpdateSource,
   ) {
     this.logger = new Logger(`${GeminiSession.name}[${sessionId}]`);
+    if (Array.isArray(toolsSource)) {
+      this.tools = toolsSource;
+      this.toolsReady = Promise.resolve();
+      this.toolsResolved = true;
+    } else {
+      this.toolsReady = toolsSource.then(
+        ({ tools, note }) => {
+          this.tools = tools;
+          this.toolNote = note;
+          this.toolsResolved = true;
+        },
+        (err) => {
+          this.logger.error(`Could not resolve session tools: ${err}`);
+          this.toolsResolved = true;
+        },
+      );
+    }
     const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
 
     this.logger.log("Initiating connection to Gemini Live API...");
     this.geminiWs = new WebSocket(geminiUrl);
 
     this.initialize();
-    this.unsubscribeDevin = devinUpdates?.subscribe(this);
+    if (devinUpdates) {
+      void this.toolsReady.then(() => {
+        const usesDevin =
+          Array.isArray(toolsSource) ||
+          this.tools.some((t) => t.requires === "devin");
+        if (usesDevin && !this.destroyed) {
+          this.unsubscribeDevin = devinUpdates.subscribe(this);
+        }
+      });
+    }
   }
 
   /**
@@ -184,6 +218,14 @@ export class GeminiSession implements LiveSession, DevinUpdateSubscriber {
    * Forwards a setup configuration payload to Gemini.
    */
   public sendSetup(config: ClientSetupConfig): void {
+    if (this.toolsResolved) {
+      this.sendSetupNow(config);
+      return;
+    }
+    void this.toolsReady.then(() => this.sendSetupNow(config));
+  }
+
+  private sendSetupNow(config: ClientSetupConfig): void {
     const geminiSetupMsg: GeminiClientMessage = {
       setup: {
         model: config.model || "models/gemini-3.1-flash-live-preview",
@@ -226,7 +268,7 @@ export class GeminiSession implements LiveSession, DevinUpdateSubscriber {
           .filter((text): text is string => Boolean(text)),
       ),
     ];
-    const text = [clientInstruction, ...toolInstructions]
+    const text = [clientInstruction, ...toolInstructions, this.toolNote]
       .filter(Boolean)
       .join("\n\n");
     return text ? { parts: [{ text }] } : undefined;
@@ -252,6 +294,7 @@ export class GeminiSession implements LiveSession, DevinUpdateSubscriber {
 
         const { output, clientIntegration } = await tool.execute(call.args, {
           sessionId: this.sessionId,
+          userId: this.userId,
         });
 
         if (clientIntegration) {
@@ -360,6 +403,7 @@ export class GeminiSession implements LiveSession, DevinUpdateSubscriber {
    * Cleans up the Gemini connection.
    */
   public destroy(): void {
+    this.destroyed = true;
     this.unsubscribeDevin?.();
     if (this.noteTimer) clearTimeout(this.noteTimer);
     if (

@@ -1,6 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "../../config/config.service";
-import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import {
+  GeminiTool,
+  ToolContext,
+  requireUserId,
+} from "../../gemini/gemini-tool.interface";
 import { devinCard, sessionCard } from "../devin-card";
 import {
   AgentIntent,
@@ -14,6 +18,7 @@ import { spokenState } from "./devin-tool.helpers";
 @Injectable()
 export class StartDevinSessionTool extends GeminiTool {
   readonly name = "start_devin_session";
+  readonly requires = "devin" as const;
   readonly instructions = DEVIN_TOOL_INSTRUCTIONS;
 
   readonly declaration = {
@@ -98,12 +103,15 @@ export class StartDevinSessionTool extends GeminiTool {
       };
     }
 
-    const session = await this.codingAgent.startSession({
-      task,
-      intent,
-      repo: args.repo,
-      mode: args.mode,
-    });
+    const session = await this.codingAgent.startSession(
+      requireUserId(context),
+      {
+        task,
+        intent,
+        repo: args.repo,
+        mode: args.mode,
+      },
+    );
     this.resolver.setFocus(context, session);
 
     return {

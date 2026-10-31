@@ -1,5 +1,11 @@
 import { Injectable, Logger, Inject } from "@nestjs/common";
 import { ConfigService } from "../config/config.service";
+import { ConnectionEvents } from "../credentials/connection-events";
+import {
+  CredentialStore,
+  ReadOnlyCredentialStoreError,
+} from "../credentials/credential-store";
+import { StoredCredential } from "../credentials/credential.types";
 
 /**
  * OAuth2 scopes required to search, control playback, and manage playlists.
@@ -25,13 +31,21 @@ const TOKEN_EXPIRY_MARGIN_MS = 60_000;
 @Injectable()
 export class SpotifyAuthService {
   private readonly logger = new Logger(SpotifyAuthService.name);
-  private accessToken?: string;
-  private expiresAt = 0;
-  private inFlightRefresh?: Promise<string>;
+  private readonly accessTokens = new Map<
+    string,
+    { token: string; expiresAt: number }
+  >();
+  private readonly inFlightRefreshes = new Map<string, Promise<string>>();
 
   constructor(
     @Inject(ConfigService) private readonly configService: ConfigService,
-  ) {}
+    @Inject(CredentialStore) private readonly credentials: CredentialStore,
+    @Inject(ConnectionEvents) connectionEvents: ConnectionEvents,
+  ) {
+    connectionEvents.onChanged((userId, provider) => {
+      if (provider === "spotify") this.forget(userId);
+    });
+  }
 
   /**
    * Returns whether the client credentials needed for any OAuth2 call exist.
@@ -39,7 +53,7 @@ export class SpotifyAuthService {
   public isConfigured(): boolean {
     return Boolean(
       this.configService.getSpotifyClientId() &&
-        this.configService.getSpotifyClientSecret(),
+      this.configService.getSpotifyClientSecret(),
     );
   }
 
@@ -75,7 +89,6 @@ export class SpotifyAuthService {
       );
     }
 
-    this.cacheAccessToken(tokens.access_token, tokens.expires_in);
     this.logger.log("Spotify authorization code exchanged successfully.");
     return { refreshToken: tokens.refresh_token };
   }
@@ -83,47 +96,90 @@ export class SpotifyAuthService {
   /**
    * Returns a valid access token, refreshing it when it is expired or absent.
    */
-  public async getAccessToken(): Promise<string> {
-    if (this.accessToken && Date.now() < this.expiresAt) {
-      return this.accessToken;
+  public async getAccessToken(userId: string): Promise<string> {
+    const cached = this.accessTokens.get(userId);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.token;
     }
-    return this.refreshAccessToken();
+    return this.refreshAccessToken(userId);
+  }
+
+  /** Drops a user's cached access token, e.g. after they reconnected. */
+  public forget(userId: string): void {
+    this.accessTokens.delete(userId);
   }
 
   /**
    * Forces a token refresh, discarding the cached access token.
    */
-  public async refreshAccessToken(): Promise<string> {
-    if (!this.inFlightRefresh) {
-      this.inFlightRefresh = this.performRefresh().finally(() => {
-        this.inFlightRefresh = undefined;
+  public async refreshAccessToken(userId: string): Promise<string> {
+    let inFlight = this.inFlightRefreshes.get(userId);
+    if (!inFlight) {
+      inFlight = this.performRefresh(userId).finally(() => {
+        this.inFlightRefreshes.delete(userId);
       });
+      this.inFlightRefreshes.set(userId, inFlight);
     }
-    return this.inFlightRefresh;
+    return inFlight;
   }
 
-  private async performRefresh(): Promise<string> {
-    const refreshToken = this.configService.getSpotifyRefreshToken();
-    if (!refreshToken) {
+  private async performRefresh(userId: string): Promise<string> {
+    const credential = await this.credentials.get(userId, "spotify");
+    if (!credential) {
       throw new Error(
-        "SPOTIFY_REFRESH_TOKEN is not defined in the environment. Authorize Spotify once via GET /spotify/login.",
+        "Spotify isn't connected for this user. They can connect it in Puding's Settings.",
       );
     }
 
     const body = new URLSearchParams({
       grant_type: "refresh_token",
-      refresh_token: refreshToken,
+      refresh_token: credential.secret.refreshToken,
     });
 
-    const tokens = await this.requestToken(body);
-    this.cacheAccessToken(tokens.access_token, tokens.expires_in);
-    this.logger.log("Spotify access token refreshed.");
+    let tokens: Awaited<ReturnType<SpotifyAuthService["requestToken"]>>;
+    try {
+      tokens = await this.requestToken(body);
+    } catch (err) {
+      await this.credentials
+        .markError(userId, "spotify", "Spotify refused the saved login.")
+        .catch(() => undefined);
+      throw err;
+    }
+    this.accessTokens.set(userId, {
+      token: tokens.access_token,
+      expiresAt: Date.now() + tokens.expires_in * 1000 - TOKEN_EXPIRY_MARGIN_MS,
+    });
+    if (
+      tokens.refresh_token &&
+      tokens.refresh_token !== credential.secret.refreshToken
+    ) {
+      await this.saveRotatedRefreshToken(
+        userId,
+        credential,
+        tokens.refresh_token,
+      );
+    }
+    this.logger.log(`Spotify access token refreshed for user ${userId}.`);
     return tokens.access_token;
   }
 
-  private cacheAccessToken(accessToken: string, expiresIn: number): void {
-    this.accessToken = accessToken;
-    this.expiresAt = Date.now() + expiresIn * 1000 - TOKEN_EXPIRY_MARGIN_MS;
+  private async saveRotatedRefreshToken(
+    userId: string,
+    credential: StoredCredential<"spotify">,
+    refreshToken: string,
+  ): Promise<void> {
+    try {
+      await this.credentials.save(userId, {
+        ...credential,
+        secret: { refreshToken },
+      });
+    } catch (err) {
+      if (!(err instanceof ReadOnlyCredentialStoreError)) {
+        this.logger.warn(
+          `Could not store rotated Spotify refresh token for ${userId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
   }
 
   private async requestToken(body: URLSearchParams): Promise<{

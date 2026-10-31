@@ -104,10 +104,12 @@ In the **Environment Variables** section on Render, add:
 | `GEMINI_API_KEY`              | Your Google AI Studio API key                                                      | **Yes**                             |
 | `NOTION_TOKEN`                | Your Notion internal integration secret (`ntn_...`)                                | **Yes**                             |
 | `TAVILY_API_KEY`              | Your Tavily Search API key (`tvly-...`)                                            | Optional                            |
+| `TAVILY_DAILY_LIMIT_PER_USER` | Web searches per user per UTC day (default `100`)                                  | Optional                            |
 | `PUDING_ACCESS_TOKEN`         | Long random secret clients must enter once (e.g. `openssl rand -hex 32`)           | **Yes** (open to anyone without it) |
 | `PUDING_AUTH_SECRET`          | Shared with Vercel; ≥32 bytes (`openssl rand -base64 32`). Turns on Google sign-in | With Google sign-in                 |
 | `ADMIN_EMAILS`                | Comma-separated emails that sign in as approved admins (e.g. your Google email)    | With Google sign-in                 |
 | `SIGNUP_MODE`                 | `allowlist`, `request` (default; approve on `/admin`) or `open`                    | With Google sign-in                 |
+| `MAX_SOCKETS_PER_USER`        | Voice sessions one user may have open at once (default `3`)                        | Optional                            |
 | `ALLOWED_EMAILS`              | Comma-separated emails approved on sign-in in `allowlist` mode                     | With `SIGNUP_MODE=allowlist`        |
 | `WEB_ORIGIN`                  | Web origins allowed by CORS, e.g. `https://puding.ofekshlinger.com,https://puding-web.vercel.app` | With Google sign-in                 |
 | `DEVIN_API_KEY`               | Devin personal access token (`cog_...`) for voice control of Devin                 | Optional                            |
@@ -117,6 +119,7 @@ In the **Environment Variables** section on Render, add:
 | `DEVIN_MAX_ACU_PER_SESSION`   | ACU cap on every Puding-created Devin session (default `10`)                       | Optional                            |
 | `DEVIN_MAX_ACTIVE_SESSIONS`   | Max Puding-created Devin sessions working at once (default `3`)                    | Optional                            |
 | `DEVIN_ENABLE_IN_PREVIEW`     | Set to `true` to register Devin tools in PR previews (off by default)              | Optional                            |
+| `DEVIN_MAX_WATCHED_USERS`     | Max users whose Devin sessions are polled at once (default `10`)                   | Optional                            |
 | `DEVIN_POLL_INTERVAL_MS`      | How often Devin sessions are checked while Puding is open (default `20000`)        | Optional                            |
 | `DATABASE_URL`                | Neon Postgres connection string (Phase 8); unset keeps the env-only mode           | Optional                            |
 | `CREDENTIALS_ENCRYPTION_KEYS` | `1:<openssl rand -base64 32>`; required with `DATABASE_URL`; add `2:…` to rotate   | With `DATABASE_URL`                 |

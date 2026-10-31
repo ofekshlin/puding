@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { GeminiService } from "./gemini.service";
+import { SessionToolResolver } from "./session-tool-resolver";
 import { LiveSessionService } from "../session/live-session.service";
 import { SessionModule } from "../session/session.module";
 import { NotionModule } from "../notion/notion.module";
@@ -35,6 +36,7 @@ import { AnswerDevinQuestionTool } from "../devin/tools/answer-devin-question.to
     DevinModule,
   ],
   providers: [
+    SessionToolResolver,
     {
       provide: LiveSessionService,
       useClass: GeminiService,

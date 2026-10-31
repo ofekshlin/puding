@@ -1,3 +1,5 @@
+import { CredentialStore } from "../credentials/credential-store";
+import { ConnectionEvents } from "../credentials/connection-events";
 import { Test, TestingModule } from "@nestjs/testing";
 import { SpotifyAuthService } from "./spotify-auth.service";
 import { ConfigService } from "../config/config.service";
@@ -30,6 +32,20 @@ describe("SpotifyAuthService", () => {
       providers: [
         SpotifyAuthService,
         { provide: ConfigService, useValue: mockConfigService },
+        {
+          provide: CredentialStore,
+          useValue: {
+            get: jest.fn().mockResolvedValue({
+              provider: "spotify",
+              kind: "oauth",
+              secret: { refreshToken: "refresh-token" },
+              settings: {},
+            }),
+            save: jest.fn(),
+            markError: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        ConnectionEvents,
       ],
     }).compile();
 
@@ -65,11 +81,9 @@ describe("SpotifyAuthService", () => {
   });
 
   it("should throw when the refresh token is missing", async () => {
-    mockConfigService.getSpotifyRefreshToken.mockReturnValue(undefined);
+    (service as any).credentials.get.mockResolvedValueOnce(null);
 
-    await expect(service.getAccessToken()).rejects.toThrow(
-      "SPOTIFY_REFRESH_TOKEN is not defined in the environment.",
-    );
+    await expect(service.getAccessToken("u1")).rejects.toThrow(/connected/);
   });
 
   it("should exchange the refresh token and cache the access token", async () => {
@@ -77,8 +91,8 @@ describe("SpotifyAuthService", () => {
       .spyOn(global, "fetch")
       .mockResolvedValue(tokenResponse() as any);
 
-    expect(await service.getAccessToken()).toBe("access-token");
-    expect(await service.getAccessToken()).toBe("access-token");
+    expect(await service.getAccessToken("u1")).toBe("access-token");
+    expect(await service.getAccessToken("u1")).toBe("access-token");
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     const [url, init] = fetchSpy.mock.calls[0];
@@ -94,7 +108,10 @@ describe("SpotifyAuthService", () => {
       .spyOn(global, "fetch")
       .mockResolvedValue(tokenResponse() as any);
 
-    await Promise.all([service.getAccessToken(), service.getAccessToken()]);
+    await Promise.all([
+      service.getAccessToken("u1"),
+      service.getAccessToken("u1"),
+    ]);
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
@@ -118,7 +135,7 @@ describe("SpotifyAuthService", () => {
       text: jest.fn().mockResolvedValue("invalid_grant"),
     } as any);
 
-    await expect(service.getAccessToken()).rejects.toThrow(
+    await expect(service.getAccessToken("u1")).rejects.toThrow(
       "Spotify token request failed with status 400.",
     );
   });

@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "../config/config.service";
+import { ConnectionEvents } from "../credentials/connection-events";
 import {
   AgentSession,
   AgentSessionState,
@@ -20,6 +21,8 @@ export interface DevinSessionUpdate {
 
 export interface DevinUpdateSubscriber {
   readonly sessionId: string;
+  /** Updates come from this user's own Devin sessions only. */
+  readonly userId: string;
   onDevinUpdate(update: DevinSessionUpdate): void;
 }
 
@@ -43,20 +46,26 @@ export function devinEnabled(
   );
 }
 
+interface UserLoop {
+  readonly userId: string;
+  readonly subscribers: Set<DevinUpdateSubscriber>;
+  readonly lastStates: Map<string, AgentSessionState>;
+  timer?: NodeJS.Timeout;
+  seeded: boolean;
+  polling: boolean;
+  /** Bumped on stop so polls that outlive their subscribers are discarded. */
+  generation: number;
+}
+
 /**
- * Polls Puding's Devin sessions while a client is connected and tells every
- * connected voice session when one starts waiting, finishes or stops.
+ * Polls each connected user's Puding-started Devin sessions with that user's
+ * own key, and tells that user's voice sessions when one starts waiting,
+ * finishes or stops. A user is only polled while they have a session open.
  */
 @Injectable()
 export class DevinWatcher implements OnModuleDestroy {
   private readonly logger = new Logger(DevinWatcher.name);
-  private readonly subscribers = new Set<DevinUpdateSubscriber>();
-  private readonly lastStates = new Map<string, AgentSessionState>();
-  private timer?: NodeJS.Timeout;
-  private seeded = false;
-  private polling = false;
-  /** Bumped on stop so polls that outlive their subscribers are discarded. */
-  private generation = 0;
+  private readonly loops = new Map<string, UserLoop>();
 
   constructor(
     @Inject(CodingAgentService)
@@ -64,77 +73,126 @@ export class DevinWatcher implements OnModuleDestroy {
     @Inject(ConfigService) private readonly config: ConfigService,
     @Inject(DilemmaParser) private readonly dilemmas: DilemmaParser,
     @Inject(SpokenReader) private readonly reader: SpokenReader,
-  ) {}
+    @Inject(ConnectionEvents) connectionEvents: ConnectionEvents,
+  ) {
+    connectionEvents.onChanged((userId, provider) => {
+      if (provider === "devin") this.forget(userId);
+    });
+  }
 
   isEnabled(): boolean {
     return devinEnabled(this.config, this.codingAgent);
   }
 
+  /** Users currently being polled. */
+  get watchedUsers(): number {
+    return this.loops.size;
+  }
+
   /**
-   * Subscribes a voice session; polling runs only while someone listens.
+   * Subscribes a voice session; its user is polled while someone listens.
    * Returns the unsubscribe function.
    */
   subscribe(subscriber: DevinUpdateSubscriber): () => void {
     if (!this.isEnabled()) return () => undefined;
-    this.subscribers.add(subscriber);
-    if (!this.timer) {
-      this.logger.log("Starting Devin session polling.");
-      this.timer = setInterval(
-        () => void this.poll(),
+    let loop = this.loops.get(subscriber.userId);
+    if (!loop) {
+      if (this.loops.size >= this.config.getDevinMaxWatchedUsers()) {
+        this.logger.warn(
+          `Not watching Devin for user ${subscriber.userId}: ${this.loops.size} users already watched.`,
+        );
+        return () => undefined;
+      }
+      loop = {
+        userId: subscriber.userId,
+        subscribers: new Set(),
+        lastStates: new Map(),
+        seeded: false,
+        polling: false,
+        generation: 0,
+      };
+      this.loops.set(subscriber.userId, loop);
+    }
+    loop.subscribers.add(subscriber);
+    if (!loop.timer) {
+      this.logger.log(`Starting Devin polling for user ${loop.userId}.`);
+      const userId = loop.userId;
+      loop.timer = setInterval(
+        () => void this.poll(userId),
         this.config.getDevinPollIntervalMs(),
       );
-      void this.poll();
+      void this.poll(userId);
     }
-    return () => this.unsubscribe(subscriber);
+    const subscribed = loop;
+    return () => this.unsubscribe(subscribed, subscriber);
+  }
+
+  /** Stops polling a user, e.g. after their Devin connection changed. */
+  forget(userId: string): void {
+    const loop = this.loops.get(userId);
+    if (loop) this.stop(loop);
   }
 
   onModuleDestroy(): void {
-    this.stop();
+    for (const loop of [...this.loops.values()]) this.stop(loop);
   }
 
   /**
-   * One polling pass. The first pass after (re)starting only records state.
+   * One polling pass for a user. The first pass after (re)starting only
+   * records state.
    */
-  async poll(): Promise<void> {
-    if (this.polling) return;
-    this.polling = true;
-    const generation = this.generation;
+  async poll(userId: string): Promise<void> {
+    const loop = this.loops.get(userId);
+    if (!loop || loop.polling) return;
+    loop.polling = true;
+    const generation = loop.generation;
     try {
-      const sessions = await this.codingAgent.listSessions({ limit: 20 });
-      if (!this.isCurrent(generation)) return;
+      const sessions = await this.codingAgent.listSessions(loop.userId, {
+        limit: 20,
+      });
+      if (!this.isCurrent(loop, generation)) return;
       const changed = sessions.filter((s) => {
-        const previous = this.lastStates.get(s.id);
-        this.lastStates.set(s.id, s.state);
+        const previous = loop.lastStates.get(s.id);
+        loop.lastStates.set(s.id, s.state);
         return (
-          this.seeded && previous !== s.state && NOTIFY_STATES.has(s.state)
+          loop.seeded && previous !== s.state && NOTIFY_STATES.has(s.state)
         );
       });
-      this.seeded = true;
+      loop.seeded = true;
       for (const session of changed) {
-        await this.announce(session, generation);
+        await this.announce(loop, session, generation);
       }
     } catch (err) {
       this.logger.warn(
-        `Devin polling failed: ${err instanceof Error ? err.message : err}`,
+        `Devin polling failed for user ${loop.userId}: ${err instanceof Error ? err.message : err}`,
       );
     } finally {
-      this.polling = false;
+      loop.polling = false;
     }
   }
 
-  private isCurrent(generation: number): boolean {
-    return generation === this.generation && this.subscribers.size > 0;
+  private isCurrent(loop: UserLoop, generation: number): boolean {
+    return (
+      generation === loop.generation &&
+      loop.subscribers.size > 0 &&
+      this.loops.get(loop.userId) === loop
+    );
   }
 
   private async announce(
+    loop: UserLoop,
     session: AgentSession,
     generation: number,
   ): Promise<void> {
     let latest: string | undefined;
     try {
-      const messages = await this.codingAgent.getMessages(session.id, {
-        last: 5,
-      });
+      const messages = await this.codingAgent.getMessages(
+        loop.userId,
+        session.id,
+        {
+          last: 5,
+        },
+      );
       latest = [...messages].reverse().find((m) => m.from === "agent")?.text;
     } catch (err) {
       this.logger.warn(
@@ -142,7 +200,7 @@ export class DevinWatcher implements OnModuleDestroy {
       );
     }
 
-    if (!this.isCurrent(generation)) return;
+    if (!this.isCurrent(loop, generation)) return;
 
     const dilemma =
       latest && session.state === "waiting_for_user"
@@ -172,11 +230,13 @@ export class DevinWatcher implements OnModuleDestroy {
       note: parts.join(" "),
       card: sessionCard(session, latest),
     };
-    this.logger.log(`Announcing ${session.id} -> ${session.state}`);
-    for (const subscriber of this.subscribers) {
+    this.logger.log(
+      `Announcing ${session.id} -> ${session.state} (user ${loop.userId})`,
+    );
+    for (const subscriber of loop.subscribers) {
       if (dilemma) {
         this.reader.rememberDilemma(
-          { sessionId: subscriber.sessionId },
+          { sessionId: subscriber.sessionId, userId: subscriber.userId },
           session.id,
           dilemma,
         );
@@ -191,19 +251,20 @@ export class DevinWatcher implements OnModuleDestroy {
     }
   }
 
-  private unsubscribe(subscriber: DevinUpdateSubscriber): void {
-    this.subscribers.delete(subscriber);
-    if (this.subscribers.size === 0) this.stop();
+  private unsubscribe(loop: UserLoop, subscriber: DevinUpdateSubscriber): void {
+    loop.subscribers.delete(subscriber);
+    if (loop.subscribers.size === 0) this.stop(loop);
   }
 
-  private stop(): void {
-    if (this.timer) {
-      this.logger.log("Stopping Devin session polling.");
-      clearInterval(this.timer);
-      this.timer = undefined;
+  private stop(loop: UserLoop): void {
+    if (loop.timer) {
+      this.logger.log(`Stopping Devin polling for user ${loop.userId}.`);
+      clearInterval(loop.timer);
+      loop.timer = undefined;
     }
-    this.generation++;
-    this.seeded = false;
-    this.lastStates.clear();
+    loop.generation++;
+    loop.seeded = false;
+    loop.lastStates.clear();
+    if (this.loops.get(loop.userId) === loop) this.loops.delete(loop.userId);
   }
 }

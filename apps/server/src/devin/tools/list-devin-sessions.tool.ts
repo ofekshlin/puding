@@ -1,5 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { GeminiTool, ToolContext } from "../../gemini/gemini-tool.interface";
+import {
+  GeminiTool,
+  ToolContext,
+  requireUserId,
+} from "../../gemini/gemini-tool.interface";
 import { devinCard } from "../devin-card";
 import { AgentSession, CodingAgentService } from "../coding-agent.interface";
 import { DEVIN_TOOL_INSTRUCTIONS } from "../devin-instructions";
@@ -21,6 +25,7 @@ const FILTERS: Record<ListFilter, (s: AgentSession) => boolean> = {
 @Injectable()
 export class ListDevinSessionsTool extends GeminiTool {
   readonly name = "list_devin_sessions";
+  readonly requires = "devin" as const;
   readonly instructions = DEVIN_TOOL_INSTRUCTIONS;
 
   readonly declaration = {
@@ -60,7 +65,9 @@ export class ListDevinSessionsTool extends GeminiTool {
       args.filter && args.filter in FILTERS ? args.filter : "active";
     const limit = Math.min(Math.max(Math.floor(args.limit ?? 5), 1), 20);
 
-    const sessions = (await this.codingAgent.listSessions({ limit: 50 }))
+    const sessions = (
+      await this.codingAgent.listSessions(requireUserId(context), { limit: 50 })
+    )
       .filter(FILTERS[filter])
       .slice(0, limit);
     this.resolver.rememberList(context, sessions);

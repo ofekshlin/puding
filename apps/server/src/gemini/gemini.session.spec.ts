@@ -51,6 +51,7 @@ describe("GeminiSession system notes", () => {
       client as any,
       "key",
       "conv",
+      "user-1",
       { updateTokens: jest.fn() } as any,
       [],
       { subscribe: jest.fn().mockReturnValue(unsubscribe) },
@@ -132,7 +133,8 @@ describe("GeminiSession system notes", () => {
     expect(notesSent()).toHaveLength(2);
   });
 
-  it("unsubscribes on destroy", () => {
+  it("unsubscribes on destroy", async () => {
+    await Promise.resolve();
     session.destroy();
     expect(unsubscribe).toHaveBeenCalled();
   });

@@ -34,6 +34,9 @@ export class ConfigService {
   private readonly devinMaxActiveSessions: number;
   private readonly devinEnabledInPreview: boolean;
   private readonly devinPollIntervalMs: number;
+  private readonly devinMaxWatchedUsers: number;
+  private readonly maxSocketsPerUser: number;
+  private readonly tavilyDailyLimitPerUser: number;
   private readonly databaseUrl?: string;
   private readonly credentialsEncryptionKeys?: string;
   private readonly envCredentialsScope: EnvCredentialScope;
@@ -85,6 +88,18 @@ export class ConfigService {
     this.devinPollIntervalMs = Math.max(
       ConfigService.parsePositiveInt(process.env.DEVIN_POLL_INTERVAL_MS, 20000),
       5000,
+    );
+    this.devinMaxWatchedUsers = ConfigService.parsePositiveInt(
+      process.env.DEVIN_MAX_WATCHED_USERS,
+      10,
+    );
+    this.maxSocketsPerUser = ConfigService.parsePositiveInt(
+      process.env.MAX_SOCKETS_PER_USER,
+      3,
+    );
+    this.tavilyDailyLimitPerUser = ConfigService.parsePositiveInt(
+      process.env.TAVILY_DAILY_LIMIT_PER_USER,
+      100,
     );
     this.databaseUrl = process.env.DATABASE_URL || undefined;
     this.credentialsEncryptionKeys =
@@ -302,6 +317,27 @@ export class ConfigService {
    */
   public getDevinPollIntervalMs(): number {
     return this.devinPollIntervalMs;
+  }
+
+  /**
+   * How many users may have their Devin sessions polled at the same time.
+   */
+  public getDevinMaxWatchedUsers(): number {
+    return this.devinMaxWatchedUsers;
+  }
+
+  /**
+   * How many voice sockets one user may have open at once.
+   */
+  public getMaxSocketsPerUser(): number {
+    return this.maxSocketsPerUser;
+  }
+
+  /**
+   * How many shared Tavily searches each user may run per UTC day.
+   */
+  public getTavilyDailyLimitPerUser(): number {
+    return this.tavilyDailyLimitPerUser;
   }
 
   /**

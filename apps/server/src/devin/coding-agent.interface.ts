@@ -58,31 +58,49 @@ export class CodingAgentError extends Error {
   }
 }
 
+/** The user has not connected the coding agent. */
+export class AgentNotConnectedError extends CodingAgentError {
+  constructor() {
+    super(
+      "Devin isn't connected for this user. They can connect it in Puding's Settings.",
+    );
+    this.name = "AgentNotConnectedError";
+  }
+}
+
 export abstract class CodingAgentService {
   /**
-   * Whether the agent backend has the credentials it needs.
+   * Whether the agent backend can be used in this deployment at all.
+   * Each call still needs the user's own connection.
    */
   abstract isConfigured(): boolean;
 
   /**
    * Starts a new agent session for the given task.
    */
-  abstract startSession(input: StartSessionInput): Promise<AgentSession>;
+  abstract startSession(
+    userId: string,
+    input: StartSessionInput,
+  ): Promise<AgentSession>;
 
   /**
    * Lists recent sessions, most recently updated first.
    */
-  abstract listSessions(opts?: ListSessionsOptions): Promise<AgentSession[]>;
+  abstract listSessions(
+    userId: string,
+    opts?: ListSessionsOptions,
+  ): Promise<AgentSession[]>;
 
   /**
    * Retrieves a single session by id.
    */
-  abstract getSession(id: string): Promise<AgentSession>;
+  abstract getSession(userId: string, id: string): Promise<AgentSession>;
 
   /**
    * Retrieves the conversation of a session in chronological order.
    */
   abstract getMessages(
+    userId: string,
     id: string,
     opts?: { last?: number },
   ): Promise<AgentMessage[]>;
@@ -90,10 +108,14 @@ export abstract class CodingAgentService {
   /**
    * Sends a message to a session, resuming it if it is asleep.
    */
-  abstract sendMessage(id: string, text: string): Promise<AgentSession>;
+  abstract sendMessage(
+    userId: string,
+    id: string,
+    text: string,
+  ): Promise<AgentSession>;
 
   /**
    * Terminates a session. This cannot be undone.
    */
-  abstract stopSession(id: string): Promise<void>;
+  abstract stopSession(userId: string, id: string): Promise<void>;
 }

@@ -1,3 +1,4 @@
+import { CredentialStore } from "../credentials/credential-store";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ConfigService } from "../config/config.service";
 import { CodingAgentError } from "./coding-agent.interface";
@@ -31,6 +32,7 @@ function rawSession(overrides: Record<string, unknown> = {}) {
 describe("DevinService", () => {
   let service: DevinService;
   let config: jest.Mocked<ConfigService>;
+  let credentials: jest.Mocked<CredentialStore>;
   let fetchMock: jest.SpyInstance;
 
   beforeEach(async () => {
@@ -43,10 +45,27 @@ describe("DevinService", () => {
         .mockReturnValue({ site: "ofekshlin/site" }),
       getDevinMaxAcuPerSession: jest.fn().mockReturnValue(10),
       getDevinMaxActiveSessions: jest.fn().mockReturnValue(3),
+      isPreview: jest.fn().mockReturnValue(false),
+      isDevinEnabledInPreview: jest.fn().mockReturnValue(false),
+    } as any;
+    credentials = {
+      get: jest.fn().mockImplementation(async () => ({
+        provider: "devin",
+        kind: "static_token",
+        secret: { apiKey: "cog_test", orgId: "org-test" },
+        settings: {
+          defaultRepo: "ofekshlin/puding",
+          repoAliases: { site: "ofekshlin/site" },
+        },
+      })),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [DevinService, { provide: ConfigService, useValue: config }],
+      providers: [
+        DevinService,
+        { provide: ConfigService, useValue: config },
+        { provide: CredentialStore, useValue: credentials },
+      ],
     }).compile();
 
     service = module.get(DevinService);
@@ -57,16 +76,22 @@ describe("DevinService", () => {
     jest.restoreAllMocks();
   });
 
-  it("is configured only with both an API key and an org id", () => {
+  it("is turned off in previews unless enabled there", () => {
     expect(service.isConfigured()).toBe(true);
-    config.getDevinOrgId.mockReturnValue(undefined);
+    config.isPreview.mockReturnValue(true);
     expect(service.isConfigured()).toBe(false);
   });
 
-  it("refuses to call Devin when not configured", async () => {
-    config.getDevinApiKey.mockReturnValue(undefined);
-    await expect(service.getSession("devin-abc")).rejects.toThrow(
-      "Devin isn't set up on this Puding server.",
+  it("uses each user's own Devin key and org", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, rawSession()));
+    await service.getSession("u2", "devin-abc");
+    expect(credentials.get).toHaveBeenCalledWith("u2", "devin");
+  });
+
+  it("refuses to call Devin when the user has not connected it", async () => {
+    credentials.get.mockResolvedValueOnce(null);
+    await expect(service.getSession("u1", "devin-abc")).rejects.toThrow(
+      "Devin isn't connected for this user.",
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -79,7 +104,7 @@ describe("DevinService", () => {
           jsonResponse(200, rawSession({ status: "new", status_detail: null })),
         );
 
-      const session = await service.startSession({
+      const session = await service.startSession("u1", {
         task: "Add dark mode to settings",
         intent: "plan",
         mode: "fast",
@@ -107,7 +132,7 @@ describe("DevinService", () => {
         .mockResolvedValueOnce(jsonResponse(200, { items: [] }))
         .mockResolvedValueOnce(jsonResponse(200, rawSession()));
 
-      await service.startSession({
+      await service.startSession("u1", {
         task: "Fix the footer",
         repo: "Site",
         intent: "build",
@@ -122,7 +147,7 @@ describe("DevinService", () => {
 
     it("rejects unknown repo aliases with the known list", async () => {
       await expect(
-        service.startSession({ task: "x", repo: "blog", intent: "plan" }),
+        service.startSession("u1", { task: "x", repo: "blog", intent: "plan" }),
       ).rejects.toThrow(
         'I don\'t know a repo called "blog". Known repos are: site.',
       );
@@ -142,7 +167,7 @@ describe("DevinService", () => {
       );
 
       await expect(
-        service.startSession({ task: "One more", intent: "plan" }),
+        service.startSession("u1", { task: "One more", intent: "plan" }),
       ).rejects.toThrow("which is the limit of 3");
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
@@ -167,7 +192,7 @@ describe("DevinService", () => {
         }),
       );
 
-      const sessions = await service.listSessions({ limit: 5 });
+      const sessions = await service.listSessions("u1", { limit: 5 });
 
       expect(fetchMock.mock.calls[0][0]).toBe(
         `${BASE}/sessions?first=50&tags=puding`,
@@ -184,7 +209,7 @@ describe("DevinService", () => {
       fetchMock.mockResolvedValueOnce(
         jsonResponse(200, { items: [rawSession({ tags: [] })] }),
       );
-      const sessions = await service.listSessions({ onlyPuding: false });
+      const sessions = await service.listSessions("u1", { onlyPuding: false });
       expect(sessions).toHaveLength(1);
       expect(fetchMock.mock.calls[0][0]).toBe(`${BASE}/sessions?first=50`);
     });
@@ -192,7 +217,7 @@ describe("DevinService", () => {
 
   it("gets a session, adding the devin- prefix when missing", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, rawSession()));
-    await service.getSession("abc");
+    await service.getSession("u1", "abc");
     expect(fetchMock.mock.calls[0][0]).toBe(`${BASE}/sessions/devin-abc`);
   });
 
@@ -216,7 +241,7 @@ describe("DevinService", () => {
         }),
       );
 
-    const messages = await service.getMessages("devin-abc", { last: 2 });
+    const messages = await service.getMessages("u1", "devin-abc", { last: 2 });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
       `${BASE}/sessions/devin-abc/messages?first=100`,
@@ -232,7 +257,7 @@ describe("DevinService", () => {
 
   it("sends a message and returns the updated session", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, rawSession()));
-    const session = await service.sendMessage("devin-abc", "  go ahead ");
+    const session = await service.sendMessage("u1", "devin-abc", "  go ahead ");
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(`${BASE}/sessions/devin-abc/messages`);
     expect(JSON.parse(init.body)).toEqual({ message: "go ahead" });
@@ -241,7 +266,7 @@ describe("DevinService", () => {
 
   it("terminates a session with DELETE", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, rawSession()));
-    await service.stopSession("devin-abc");
+    await service.stopSession("u1", "devin-abc");
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(`${BASE}/sessions/devin-abc`);
     expect(init.method).toBe("DELETE");
@@ -256,7 +281,7 @@ describe("DevinService", () => {
       [500, "Devin had a problem handling that request."],
     ])("translates HTTP %i", async (status, message) => {
       fetchMock.mockResolvedValueOnce(jsonResponse(status, {}));
-      const error = await service.getSession("devin-abc").catch((e) => e);
+      const error = await service.getSession("u1", "devin-abc").catch((e) => e);
       expect(error).toBeInstanceOf(CodingAgentError);
       expect(error.message).toBe(message);
       expect(error.status).toBe(status);
@@ -266,7 +291,7 @@ describe("DevinService", () => {
       fetchMock.mockResolvedValueOnce(
         jsonResponse(422, { detail: "Repo not connected" }),
       );
-      await expect(service.getSession("devin-abc")).rejects.toThrow(
+      await expect(service.getSession("u1", "devin-abc")).rejects.toThrow(
         "Devin refused the request: Repo not connected",
       );
     });
@@ -275,11 +300,11 @@ describe("DevinService", () => {
       fetchMock.mockRejectedValueOnce(
         Object.assign(new Error("timeout"), { name: "TimeoutError" }),
       );
-      await expect(service.getSession("devin-abc")).rejects.toThrow(
+      await expect(service.getSession("u1", "devin-abc")).rejects.toThrow(
         "Devin didn't answer in time, try again in a moment.",
       );
       fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
-      await expect(service.getSession("devin-abc")).rejects.toThrow(
+      await expect(service.getSession("u1", "devin-abc")).rejects.toThrow(
         "I couldn't reach Devin right now.",
       );
     });

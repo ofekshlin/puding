@@ -1,3 +1,4 @@
+import { ConnectionEvents } from "../credentials/connection-events";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ProxyGateway } from "./proxy.gateway";
 import {
@@ -20,6 +21,7 @@ describe("ProxyGateway (Unit)", () => {
   let mockConfigService: jest.Mocked<ConfigService>;
   let mockSessionTracker: jest.Mocked<SessionTracker>;
   let mockAuthService: jest.Mocked<AuthService>;
+  let connectionEvents: ConnectionEvents;
 
   beforeEach(async () => {
     mockLiveSession = {
@@ -37,6 +39,7 @@ describe("ProxyGateway (Unit)", () => {
     mockConfigService = {
       getGeminiApiKey: jest.fn().mockReturnValue("test-api-key"),
       getPort: jest.fn().mockReturnValue(6601),
+      getMaxSocketsPerUser: jest.fn().mockReturnValue(3),
     } as any;
 
     mockSessionTracker = {
@@ -55,6 +58,7 @@ describe("ProxyGateway (Unit)", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProxyGateway,
+        ConnectionEvents,
         {
           provide: LiveSessionService,
           useValue: mockLiveSessionService,
@@ -76,6 +80,7 @@ describe("ProxyGateway (Unit)", () => {
     }).compile();
 
     gateway = module.get<ProxyGateway>(ProxyGateway);
+    connectionEvents = module.get(ConnectionEvents);
   });
 
   it("should create a session for the authenticated user", async () => {
@@ -314,5 +319,64 @@ describe("ProxyGateway (Unit)", () => {
     expect(mine.close).toHaveBeenCalled();
     expect(theirs.send).not.toHaveBeenCalled();
     expect(theirs.close).not.toHaveBeenCalled();
+  });
+
+  describe("per-user sockets", () => {
+    const mockReq = {
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+    const openSocket = () => {
+      const socket = new EventEmitter() as any;
+      socket.readyState = WebSocket.OPEN;
+      socket.send = jest.fn();
+      socket.close = jest.fn();
+      return socket;
+    };
+
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it("turns away a user's socket beyond MAX_SOCKETS_PER_USER", async () => {
+      for (let i = 0; i < 3; i++) {
+        await gateway.handleConnection(openSocket(), mockReq);
+      }
+      const extra = openSocket();
+      await gateway.handleConnection(extra, mockReq);
+      jest.runAllTimers();
+
+      expect(mockLiveSessionService.createSession).toHaveBeenCalledTimes(3);
+      expect(extra.send).toHaveBeenCalledWith(
+        JSON.stringify({ type: "too_many_sessions", limit: 3 }),
+      );
+      expect(extra.close).toHaveBeenCalledWith(1008, "Too many sessions");
+    });
+
+    it("asks only that user's sockets to reconnect when a connection changes", async () => {
+      const mine = openSocket();
+      const theirs = openSocket();
+      await gateway.handleConnection(mine, mockReq);
+      mockAuthService.authenticate.mockResolvedValueOnce({
+        ok: true,
+        user: { ...LOCAL_USER, id: "someone-else" },
+      });
+      await gateway.handleConnection(theirs, mockReq);
+
+      connectionEvents.changed(LOCAL_USER.id, "spotify", "saved");
+      jest.runAllTimers();
+
+      expect(mine.send).toHaveBeenCalledWith(
+        JSON.stringify({ type: "connections_changed", provider: "spotify" }),
+      );
+      expect(mine.close).toHaveBeenCalledWith(1012, "Connections changed");
+      expect(theirs.close).not.toHaveBeenCalled();
+    });
+
+    it("keeps sessions open when a connection only errors", async () => {
+      const mine = openSocket();
+      await gateway.handleConnection(mine, mockReq);
+      connectionEvents.changed(LOCAL_USER.id, "spotify", "errored");
+      jest.runAllTimers();
+      expect(mine.close).not.toHaveBeenCalled();
+    });
   });
 });

@@ -10,11 +10,18 @@ import { CredentialCipher } from "../credentials/credential-cipher";
 import { CredentialStore } from "../credentials/credential-store";
 import { EnvCredentialStore } from "../credentials/env-credential-store";
 import { LayeredCredentialStore } from "../credentials/layered-credential-store";
+import { NotifyingCredentialStore } from "../credentials/notifying-credential-store";
 import { PostgresCredentialStore } from "../credentials/postgres-credential-store";
 import { EnvUserDirectory } from "../users/env-user-directory";
 import { PostgresUserDirectory } from "../users/postgres-user-directory";
 import { UserDirectory } from "../users/user-directory";
 import { DATABASE, DatabaseConnection, connectDatabase } from "./database";
+import {
+  InMemoryUsageLimiter,
+  PostgresUsageLimiter,
+  UsageLimiter,
+} from "./usage-limiter";
+import { ConnectionEvents } from "../credentials/connection-events";
 
 const logger = new Logger("DatabaseModule");
 
@@ -45,6 +52,15 @@ const logger = new Logger("DatabaseModule");
       },
     },
     EnvCredentialStore,
+    ConnectionEvents,
+    {
+      provide: UsageLimiter,
+      inject: [DATABASE],
+      useFactory: (connection: DatabaseConnection | null): UsageLimiter =>
+        connection
+          ? new PostgresUsageLimiter(connection.db)
+          : new InMemoryUsageLimiter(),
+    },
     {
       provide: UserDirectory,
       inject: [DATABASE],
@@ -55,30 +71,46 @@ const logger = new Logger("DatabaseModule");
     },
     {
       provide: CredentialStore,
-      inject: [DATABASE, ConfigService, EnvCredentialStore, UserDirectory],
+      inject: [
+        DATABASE,
+        ConfigService,
+        EnvCredentialStore,
+        UserDirectory,
+        ConnectionEvents,
+      ],
       useFactory: (
         connection: DatabaseConnection | null,
         config: ConfigService,
         env: EnvCredentialStore,
         users: UserDirectory,
+        events: ConnectionEvents,
       ): CredentialStore => {
-        if (!connection) return env;
+        if (!connection) return new NotifyingCredentialStore(env, events);
         const cipher = new CredentialCipher(
           config.getCredentialsEncryptionKeys(),
         );
         logger.log(
           `Credential store: Postgres (key v${cipher.currentKeyVersion}), env fallback for "${config.getEnvCredentialsScope()}".`,
         );
-        return new LayeredCredentialStore(
-          new PostgresCredentialStore(connection.db, cipher),
-          env,
-          users,
-          config.getEnvCredentialsScope(),
+        return new NotifyingCredentialStore(
+          new LayeredCredentialStore(
+            new PostgresCredentialStore(connection.db, cipher),
+            env,
+            users,
+            config.getEnvCredentialsScope(),
+          ),
+          events,
         );
       },
     },
   ],
-  exports: [DATABASE, CredentialStore, UserDirectory],
+  exports: [
+    DATABASE,
+    CredentialStore,
+    UserDirectory,
+    UsageLimiter,
+    ConnectionEvents,
+  ],
 })
 export class DatabaseModule implements OnApplicationShutdown {
   constructor(
