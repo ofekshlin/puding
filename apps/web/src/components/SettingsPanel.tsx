@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { signOutOfPuding } from "../app/actions";
 import { useMe } from "../hooks/useMe";
 import {
@@ -13,14 +13,47 @@ import { ConnectionCard } from "./ConnectionCard";
 import { DevinKeyForm } from "./DevinKeyForm";
 import { SignedInUser, UserMenu } from "./UserMenu";
 
-/** Spotify apps in development mode allow at most five users, owner included. */
-const SPOTIFY_DEV_MODE_LIMIT = 5;
+interface SpotifySlots {
+  used: number;
+  max: number;
+  available: boolean;
+}
+
+const CONNECT_ERRORS: Record<string, string> = {
+  spotify_state: "That Spotify sign-in link expired. Try connecting again.",
+  spotify_denied: "Spotify wasn't connected because the request was declined.",
+  spotify_not_allowlisted:
+    "Spotify only lets accounts on the Puding app's user list connect. Ask the Puding admin to add your Spotify email under Users Management.",
+  spotify_failed: "Couldn't finish connecting Spotify. Try again in a moment.",
+  spotify_full:
+    "All Spotify slots are taken: Spotify allows only 5 users while Puding's app is in development mode.",
+  not_configured: "Spotify isn't set up on this Puding server.",
+  no_database: "This server has no database, so apps can't be connected here.",
+};
+
+const CONNECTED_NOTICES: Record<string, string> = {
+  spotify: "Spotify is connected.",
+};
 
 /** Connect, reconnect and disconnect your own apps; delete the account. */
 export function SettingsPanel({ user }: { user: SignedInUser }) {
   const { me, setMe } = useMe();
   const [busy, setBusy] = useState<Provider | "account" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [spotifySlots, setSpotifySlots] = useState<SpotifySlots | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    const failed = params.get("error");
+    if (connected) setNotice(CONNECTED_NOTICES[connected] ?? null);
+    if (failed) setError(CONNECT_ERRORS[failed] ?? "Couldn't connect the app.");
+    if (connected || failed) window.history.replaceState(null, "", "/settings");
+    backendRequest<SpotifySlots>("/connections/spotify/slots")
+      .then(setSpotifySlots)
+      .catch(() => undefined);
+  }, []);
 
   const connectionFor = (provider: Provider) =>
     me?.connections.find((c) => c.provider === provider);
@@ -55,6 +88,26 @@ export function SettingsPanel({ user }: { user: SignedInUser }) {
           : `Couldn't disconnect ${provider}.`,
       );
     } finally {
+      setBusy(null);
+    }
+  };
+
+  const connectSpotify = async () => {
+    setBusy("spotify");
+    setError(null);
+    try {
+      const { url } = await backendRequest<{ url: string }>(
+        "/connections/spotify/authorize",
+        { method: "POST" },
+      );
+      window.location.assign(url);
+    } catch (err) {
+      setError(
+        (err instanceof BackendError &&
+          err.reason &&
+          CONNECT_ERRORS[err.reason]) ||
+          "Couldn't start connecting Spotify.",
+      );
       setBusy(null);
     }
   };
@@ -105,6 +158,12 @@ export function SettingsPanel({ user }: { user: SignedInUser }) {
           </p>
         )}
 
+        {notice && (
+          <p className="admin-reminder" role="status">
+            {notice}
+          </p>
+        )}
+
         {!me && <p className="account-text">Loading…</p>}
 
         {me && !approved && (
@@ -141,11 +200,26 @@ export function SettingsPanel({ user }: { user: SignedInUser }) {
               busy={busy === "spotify"}
               onDisconnect={() => disconnect("spotify")}
             >
-              <p className="connection-card-meta">
-                Connecting your own Spotify account is coming soon. While the
-                Puding Spotify app is in development mode, Spotify allows at
-                most {SPOTIFY_DEV_MODE_LIMIT} users.
-              </p>
+              {spotifySlots && (
+                <p className="connection-card-meta">
+                  {spotifySlots.used} of {spotifySlots.max} Spotify slots used.
+                  While Puding&apos;s Spotify app is in development mode,
+                  Spotify only lets accounts the admin added under Users
+                  Management connect.
+                </p>
+              )}
+              {spotifySlots?.available !== false && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={busy === "spotify"}
+                  onClick={connectSpotify}
+                >
+                  {connectionFor("spotify")?.source === "db"
+                    ? "Reconnect Spotify"
+                    : "Connect Spotify"}
+                </button>
+              )}
             </ConnectionCard>
 
             <ConnectionCard

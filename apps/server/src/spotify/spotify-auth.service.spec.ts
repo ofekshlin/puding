@@ -125,6 +125,7 @@ describe("SpotifyAuthService", () => {
 
     await expect(service.exchangeCode("auth-code")).resolves.toEqual({
       refreshToken: "new-refresh-token",
+      accessToken: "access-token",
     });
   });
 
@@ -138,5 +139,46 @@ describe("SpotifyAuthService", () => {
     await expect(service.getAccessToken("u1")).rejects.toThrow(
       "Spotify token request failed with status 400.",
     );
+  });
+
+  it("marks the connection for reconnecting only on invalid_grant", async () => {
+    const store = (service as any).credentials;
+    jest.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      text: jest.fn().mockResolvedValue("unavailable"),
+    } as any);
+    await expect(service.getAccessToken("u1")).rejects.toThrow();
+    expect(store.markError).not.toHaveBeenCalled();
+
+    jest.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: jest.fn().mockResolvedValue('{"error":"invalid_grant"}'),
+    } as any);
+    await expect(service.getAccessToken("u1")).rejects.toThrow();
+    expect(store.markError).toHaveBeenCalledWith(
+      "u1",
+      "spotify",
+      expect.stringContaining("Reconnect"),
+    );
+  });
+
+  it("reads the display name, and 403 as not on the app's user list", async () => {
+    jest.spyOn(global, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ display_name: "Ofek", id: "o" }),
+    } as any);
+    await expect(service.fetchProfile("at")).resolves.toEqual({
+      kind: "ok",
+      label: "Ofek",
+    });
+    jest
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce({ ok: false, status: 403 } as any);
+    await expect(service.fetchProfile("at")).resolves.toEqual({
+      kind: "not_allowlisted",
+    });
   });
 });
