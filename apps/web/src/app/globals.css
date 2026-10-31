@@ -1391,3 +1391,102 @@ body {
   display: flex;
   gap: 0.5rem;
 }
+
+.connection-card {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.connection-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.connection-card-title {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.connection-card-text,
+.connection-card-meta {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.connection-card-meta a {
+  color: inherit;
+}
+
+.connection-status {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.connection-status-on {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--color-success);
+}
+
+.connection-status-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-danger);
+}
+
+.connection-card .btn {
+  align-self: flex-start;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.settings-field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px;
+}
+
+.danger-zone {
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger {
+  background-color: var(--color-danger);
+  color: var(--text-primary);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: var(--color-danger-hover);
+}

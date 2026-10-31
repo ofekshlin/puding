@@ -9,6 +9,7 @@ import {
   UNAUTHORIZED_CLOSE_CODE,
 } from "../lib/accessToken";
 import { fetchPudingToken } from "../lib/pudingToken";
+import { signOutOfPuding } from "../app/actions";
 
 export type ConnectionStatus =
   "disconnected" | "connecting" | "waking" | "connected" | "failed";
@@ -71,6 +72,7 @@ export function useLiveSession({
   const connectRef = useRef<() => Promise<void>>();
   const wsRef = useRef<WebSocket | null>(null);
   const wakingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectOnFocusRef = useRef(false);
 
   const clearWakingTimer = useCallback(() => {
     if (wakingTimerRef.current) {
@@ -142,6 +144,7 @@ export function useLiveSession({
     let rejected = false;
     let rejectReason: string | undefined;
     let connectionsChanged = false;
+    let accountDeleted = false;
 
     ws.onopen = () => {
       clearWakingTimer();
@@ -172,6 +175,8 @@ export function useLiveSession({
           rejectReason = msg.reason;
         } else if (msg.type === "connections_changed") {
           connectionsChanged = true;
+        } else if (msg.type === "account_deleted") {
+          accountDeleted = true;
         } else if (msg.type === "too_many_sessions") {
           addLog(
             `You already have ${msg.limit} Puding sessions open. Close one and try again.`,
@@ -300,7 +305,15 @@ export function useLiveSession({
     ws.onclose = (event) => {
       clearWakingTimer();
       setStatus("disconnected");
-      if (connectionsChanged) {
+      if (accountDeleted) {
+        addLog("This account was deleted. Signing out...");
+        void signOutOfPuding();
+      } else if (connectionsChanged && document.hidden) {
+        addLog(
+          "Your connected services changed; reconnecting when you return.",
+        );
+        reconnectOnFocusRef.current = true;
+      } else if (connectionsChanged) {
         addLog("Your connected services changed, reconnecting...");
         void connectRef.current?.();
       } else if (
@@ -355,7 +368,24 @@ export function useLiveSession({
     connectRef.current = connect;
   }, [connect]);
 
+  // A session closed by a Settings change in another tab picks up the new
+  // tools when the user comes back to this one.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.hidden || !reconnectOnFocusRef.current) return;
+      reconnectOnFocusRef.current = false;
+      void connectRef.current?.();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, []);
+
   const disconnect = useCallback(() => {
+    reconnectOnFocusRef.current = false;
     clearWakingTimer();
     stopPlayback();
     setIsThinking(false);

@@ -70,6 +70,17 @@ describe("PostgresUserDirectory", () => {
     expect(await users.recordAccessRequest("local", null)).toBeNull();
   });
 
+  it("deletes stored accounts and nothing else", async () => {
+    const user = await users.upsertFromGoogle(
+      { googleSub: "g-del", email: "gone@example.com" },
+      { role: "user", status: "approved" },
+    );
+    expect(await users.delete(user.id)).toBe(true);
+    expect(await users.findById(user.id)).toBeNull();
+    expect(await users.delete(user.id)).toBe(false);
+    expect(await users.delete("local")).toBe(false);
+  });
+
   it("returns null for unknown or non-UUID ids", async () => {
     expect(await users.findById("local")).toBeNull();
     expect(

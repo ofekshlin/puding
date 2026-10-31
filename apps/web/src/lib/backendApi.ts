@@ -17,8 +17,22 @@ export interface PudingUser {
   decidedAt?: string;
 }
 
+export type Provider = "spotify" | "notion" | "devin";
+
+/** A connected provider as the backend reports it; never includes the secret. */
+export interface ConnectionSummary {
+  provider: Provider;
+  kind: "oauth" | "static_token" | "disconnected";
+  source: "db" | "env";
+  settings: Record<string, unknown>;
+  accountLabel?: string;
+  connectedAt?: string;
+  lastError?: string;
+}
+
 export interface MeResponse extends PudingUser {
   signupMode: SignupMode;
+  connections: ConnectionSummary[];
   pendingRequests?: number;
 }
 
@@ -41,7 +55,7 @@ export function toHttpOrigin(wsUrl: string): string {
 /** Calls the backend REST API with a fresh `Authorization: Bearer` token. */
 export async function backendRequest<T>(
   path: string,
-  init: { method?: "GET" | "POST"; body?: unknown } = {},
+  init: { method?: "GET" | "POST" | "PUT" | "DELETE"; body?: unknown } = {},
 ): Promise<T> {
   const token = await fetchPudingToken();
   if (token.kind === "signed_out") {
@@ -67,5 +81,6 @@ export async function backendRequest<T>(
     } | null;
     throw new BackendError(res.status, body?.reason);
   }
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }

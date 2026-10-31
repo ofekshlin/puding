@@ -42,6 +42,7 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @Inject(ConnectionEvents) connectionEvents: ConnectionEvents,
   ) {
     accessEvents.onRevoked((userId) => this.disconnectUser(userId));
+    accessEvents.onDeleted((userId) => this.closeDeletedUser(userId));
     connectionEvents.onChanged((userId, provider, change) => {
       if (change !== "errored") this.reconnectUser(userId, provider);
     });
@@ -74,6 +75,19 @@ export class ProxyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (owner === userId) count++;
     }
     return count;
+  }
+
+  /** Tells a deleted account's live sockets to sign out, then closes them. */
+  public closeDeletedUser(userId: string): void {
+    for (const [client, owner] of this.clientUsers) {
+      if (owner !== userId) continue;
+      this.clientUsers.delete(client);
+      this.send(client, { type: "account_deleted" });
+      setTimeout(
+        () => client.close(UNAUTHORIZED_CLOSE_CODE, "Account deleted"),
+        UNAUTHORIZED_CLOSE_DELAY_MS,
+      );
+    }
   }
 
   /** Closes every live socket of a user whose access was revoked. */

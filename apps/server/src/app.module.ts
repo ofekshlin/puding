@@ -9,6 +9,7 @@ import { SpotifyModule } from "./spotify/spotify.module";
 import { HealthModule } from "./health/health.module";
 import { DatabaseModule } from "./database/database.module";
 import { UsersModule } from "./users/users.module";
+import { ConnectionsModule } from "./connections/connections.module";
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { UsersModule } from "./users/users.module";
     SpotifyModule,
     HealthModule,
     UsersModule,
+    ConnectionsModule,
   ],
 })
 export class AppModule {}

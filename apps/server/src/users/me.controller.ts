@@ -2,13 +2,16 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Inject,
   Post,
   ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
+import { UserAccessEvents } from "../auth/user-access-events";
 import { AllowPending, CurrentUser, UserGuard } from "../auth/user.guard";
 import { SignupMode } from "../config/config.service";
 import { CredentialStore } from "../credentials/credential-store";
@@ -33,6 +36,7 @@ export class MeController {
     @Inject(UserDirectory) private readonly users: UserDirectory,
     @Inject(SignupPolicy) private readonly policy: SignupPolicy,
     @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(UserAccessEvents) private readonly events: UserAccessEvents,
   ) {}
 
   /** The signed-in user, their status, and (once approved) their connections. */
@@ -77,5 +81,18 @@ export class MeController {
     }
     this.auth.forget(updated.id);
     return { ...updated, connections: [], signupMode: this.policy.getMode() };
+  }
+
+  /** Deletes the account and every connection; live sockets are told to sign out. */
+  @Delete()
+  @HttpCode(204)
+  @AllowPending({ rejected: true })
+  public async deleteMe(@CurrentUser() user: PudingUser): Promise<void> {
+    const deleted = await this.users.delete(user.id);
+    if (!deleted) {
+      throw new ServiceUnavailableException({ reason: "no_database" });
+    }
+    this.auth.forget(user.id);
+    this.events.deleted(user.id);
   }
 }

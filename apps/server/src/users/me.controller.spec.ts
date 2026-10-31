@@ -1,5 +1,6 @@
 import { ConflictException, ServiceUnavailableException } from "@nestjs/common";
 import { AuthService } from "../auth/auth.service";
+import { UserAccessEvents } from "../auth/user-access-events";
 import { CredentialStore } from "../credentials/credential-store";
 import { LOCAL_USER } from "./env-user-directory";
 import { MeController } from "./me.controller";
@@ -22,14 +23,19 @@ describe("MeController", () => {
   const users = {
     list: jest.fn().mockResolvedValue([PENDING, PENDING]),
     recordAccessRequest: jest.fn(),
+    delete: jest.fn(),
   };
   const forget = jest.fn();
+  const events = { deleted: jest.fn() } as unknown as UserAccessEvents & {
+    deleted: jest.Mock;
+  };
   let mode = "request";
   const controller = new MeController(
     { listConnected } as unknown as CredentialStore,
     users as unknown as UserDirectory,
     { getMode: () => mode } as unknown as SignupPolicy,
     { forget } as unknown as AuthService,
+    events,
   );
 
   beforeEach(() => {
@@ -97,5 +103,21 @@ describe("MeController", () => {
     await expect(controller.requestAccess(PENDING, {})).rejects.toThrow(
       ServiceUnavailableException,
     );
+  });
+
+  it("deletes the account, forgets its cached session and signs out live sockets", async () => {
+    users.delete.mockResolvedValue(true);
+    await controller.deleteMe(PENDING);
+    expect(users.delete).toHaveBeenCalledWith("u1");
+    expect(forget).toHaveBeenCalledWith("u1");
+    expect(events.deleted).toHaveBeenCalledWith("u1");
+  });
+
+  it("reports when there is no stored account to delete", async () => {
+    users.delete.mockResolvedValue(false);
+    await expect(controller.deleteMe(LOCAL_USER)).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    expect(events.deleted).not.toHaveBeenCalled();
   });
 });

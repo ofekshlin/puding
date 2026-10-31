@@ -55,4 +55,8 @@ export class EnvUserDirectory extends UserDirectory {
   public async recordAccessRequest(): Promise<PudingUser | null> {
     return null;
   }
+
+  public async delete(): Promise<boolean> {
+    return false;
+  }
 }

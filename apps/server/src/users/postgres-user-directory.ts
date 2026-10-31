@@ -105,4 +105,13 @@ export class PostgresUserDirectory extends UserDirectory {
       .returning();
     return row ? toUser(row) : null;
   }
+
+  public async delete(id: string): Promise<boolean> {
+    if (!isUuid(id)) return false;
+    const rows = await this.db
+      .delete(users)
+      .where(eq(users.id, id))
+      .returning({ id: users.id });
+    return rows.length > 0;
+  }
 }
