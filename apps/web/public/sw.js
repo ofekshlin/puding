@@ -40,10 +40,22 @@ self.addEventListener("fetch", (event) => {
   // the network, and only fall back to a cached copy when offline.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(async () => {
-        const cached = await caches.match(request);
-        return cached || Response.error();
-      }),
+      fetch(request)
+        .then((response) => {
+          if (
+            response.ok &&
+            !response.redirected &&
+            response.type === "basic"
+          ) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          return cached || Response.error();
+        }),
     );
     return;
   }
