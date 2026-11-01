@@ -2,6 +2,7 @@ import { Injectable, Logger, Inject } from "@nestjs/common";
 import { Client } from "@notionhq/client";
 import { ConnectionEvents } from "../credentials/connection-events";
 import { CredentialStore } from "../credentials/credential-store";
+import { NotionTokenManager } from "./notion-token-manager";
 
 @Injectable()
 export class NotionService {
@@ -14,6 +15,7 @@ export class NotionService {
   constructor(
     @Inject(CredentialStore) private readonly credentials: CredentialStore,
     @Inject(ConnectionEvents) connectionEvents: ConnectionEvents,
+    @Inject(NotionTokenManager) private readonly tokens: NotionTokenManager,
   ) {
     connectionEvents.onChanged((userId, provider) => {
       if (provider === "notion") this.forget(userId);
@@ -28,7 +30,7 @@ export class NotionService {
         "Notion isn't connected for this user. They can connect it in Puding's Settings.",
       );
     }
-    const token = credential.secret.accessToken;
+    const token = await this.tokens.accessTokenFor(userId, credential);
     const cached = this.clients.get(userId);
     if (cached?.token === token) return cached.client;
     const client = new Client({ auth: token });

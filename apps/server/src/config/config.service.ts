@@ -17,6 +17,9 @@ export class ConfigService {
   private readonly geminiApiKey: string;
   private readonly port: number;
   private readonly notionToken: string;
+  private readonly notionOAuthClientId?: string;
+  private readonly notionOAuthClientSecret?: string;
+  private readonly notionOAuthRedirectUri: string;
   private readonly tavilyApiKey?: string;
   private readonly spotifyClientId?: string;
   private readonly spotifyClientSecret?: string;
@@ -59,6 +62,12 @@ export class ConfigService {
     this.geminiApiKey = process.env.GEMINI_API_KEY as string;
     this.port = process.env.PORT ? parseInt(process.env.PORT, 10) : 6601;
     this.notionToken = process.env.NOTION_TOKEN as string;
+    this.notionOAuthClientId = process.env.NOTION_OAUTH_CLIENT_ID || undefined;
+    this.notionOAuthClientSecret =
+      process.env.NOTION_OAUTH_CLIENT_SECRET || undefined;
+    this.notionOAuthRedirectUri =
+      process.env.NOTION_OAUTH_REDIRECT_URI ??
+      `http://127.0.0.1:${this.port}/connections/notion/callback`;
     this.tavilyApiKey = process.env.TAVILY_API_KEY;
     this.spotifyClientId = process.env.SPOTIFY_CLIENT_ID;
     this.spotifyClientSecret = process.env.SPOTIFY_CLIENT_SECRET;
@@ -198,6 +207,21 @@ export class ConfigService {
    */
   public getNotionToken(): string {
     return this.notionToken;
+  }
+
+  /** OAuth client ID of the Notion public connection (per-user "Connect Notion"). */
+  public getNotionOAuthClientId(): string | undefined {
+    return this.notionOAuthClientId;
+  }
+
+  /** OAuth client secret of the Notion public connection. */
+  public getNotionOAuthClientSecret(): string | undefined {
+    return this.notionOAuthClientSecret;
+  }
+
+  /** Redirect URI registered on the Notion public connection. */
+  public getNotionOAuthRedirectUri(): string {
+    return this.notionOAuthRedirectUri;
   }
 
   /**

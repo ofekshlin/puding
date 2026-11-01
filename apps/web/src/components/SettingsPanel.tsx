@@ -11,6 +11,7 @@ import {
 } from "../lib/backendApi";
 import { ConnectionCard } from "./ConnectionCard";
 import { DevinKeyForm } from "./DevinKeyForm";
+import { NotionTokenForm } from "./NotionTokenForm";
 import { SignedInUser, UserMenu } from "./UserMenu";
 
 interface SpotifySlots {
@@ -27,12 +28,16 @@ const CONNECT_ERRORS: Record<string, string> = {
   spotify_failed: "Couldn't finish connecting Spotify. Try again in a moment.",
   spotify_full:
     "All Spotify slots are taken: Spotify allows only 5 users while Puding's app is in development mode.",
+  notion_state: "That Notion sign-in link expired. Try connecting again.",
+  notion_denied: "Notion wasn't connected because the request was declined.",
+  notion_failed: "Couldn't finish connecting Notion. Try again in a moment.",
   not_configured: "Spotify isn't set up on this Puding server.",
   no_database: "This server has no database, so apps can't be connected here.",
 };
 
 const CONNECTED_NOTICES: Record<string, string> = {
   spotify: "Spotify is connected.",
+  notion: "Notion is connected.",
 };
 
 /** Connect, reconnect and disconnect your own apps; delete the account. */
@@ -42,6 +47,7 @@ export function SettingsPanel({ user }: { user: SignedInUser }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [spotifySlots, setSpotifySlots] = useState<SpotifySlots | null>(null);
+  const [notionOAuth, setNotionOAuth] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -52,6 +58,9 @@ export function SettingsPanel({ user }: { user: SignedInUser }) {
     if (connected || failed) window.history.replaceState(null, "", "/settings");
     backendRequest<SpotifySlots>("/connections/spotify/slots")
       .then(setSpotifySlots)
+      .catch(() => undefined);
+    backendRequest<{ oauth: boolean }>("/connections/notion/options")
+      .then((options) => setNotionOAuth(options.oauth))
       .catch(() => undefined);
   }, []);
 
@@ -92,12 +101,12 @@ export function SettingsPanel({ user }: { user: SignedInUser }) {
     }
   };
 
-  const connectSpotify = async () => {
-    setBusy("spotify");
+  const startConnect = async (provider: "spotify" | "notion") => {
+    setBusy(provider);
     setError(null);
     try {
       const { url } = await backendRequest<{ url: string }>(
-        "/connections/spotify/authorize",
+        `/connections/${provider}/authorize`,
         { method: "POST" },
       );
       window.location.assign(url);
@@ -106,7 +115,7 @@ export function SettingsPanel({ user }: { user: SignedInUser }) {
         (err instanceof BackendError &&
           err.reason &&
           CONNECT_ERRORS[err.reason]) ||
-          "Couldn't start connecting Spotify.",
+          `Couldn't start connecting ${provider === "spotify" ? "Spotify" : "Notion"}.`,
       );
       setBusy(null);
     }
@@ -213,7 +222,7 @@ export function SettingsPanel({ user }: { user: SignedInUser }) {
                   type="button"
                   className="btn btn-primary btn-sm"
                   disabled={busy === "spotify"}
-                  onClick={connectSpotify}
+                  onClick={() => startConnect("spotify")}
                 >
                   {connectionFor("spotify")?.source === "db"
                     ? "Reconnect Spotify"
@@ -229,9 +238,27 @@ export function SettingsPanel({ user }: { user: SignedInUser }) {
               busy={busy === "notion"}
               onDisconnect={() => disconnect("notion")}
             >
-              <p className="connection-card-meta">
-                Connecting your own Notion workspace is coming soon.
-              </p>
+              {notionOAuth && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={busy === "notion"}
+                    onClick={() => startConnect("notion")}
+                  >
+                    {connectionFor("notion")?.source === "db"
+                      ? "Reconnect Notion"
+                      : "Connect Notion"}
+                  </button>
+                  <p className="connection-card-meta">
+                    Notion asks which pages Puding may use. Or paste an
+                    integration token instead:
+                  </p>
+                </>
+              )}
+              <NotionTokenForm
+                onSaved={(c) => replaceConnection("notion", c)}
+              />
             </ConnectionCard>
 
             <ConnectionCard
