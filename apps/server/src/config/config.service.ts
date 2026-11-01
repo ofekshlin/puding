@@ -65,7 +65,7 @@ export class ConfigService {
     this.spotifyRefreshToken = process.env.SPOTIFY_REFRESH_TOKEN;
     this.spotifyRedirectUri =
       process.env.SPOTIFY_REDIRECT_URI ??
-      `http://localhost:${this.port}/spotify/callback`;
+      `http://127.0.0.1:${this.port}/connections/spotify/callback`;
     this.commitSha = process.env.RENDER_GIT_COMMIT ?? "unknown";
     this.serviceName = process.env.RENDER_SERVICE_NAME ?? "local";
     this.preview = process.env.IS_PULL_REQUEST === "true";

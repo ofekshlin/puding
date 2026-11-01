@@ -19,14 +19,31 @@ export const SPOTIFY_SCOPES = [
 ];
 
 const ACCOUNTS_BASE_URL = "https://accounts.spotify.com";
+const API_BASE_URL = "https://api.spotify.com/v1";
+
+/** A failed call to Spotify's token endpoint. */
+export class SpotifyTokenError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly invalidGrant: boolean,
+  ) {
+    super(`Spotify token request failed with status ${status}.`);
+    this.name = "SpotifyTokenError";
+  }
+}
+
+export type SpotifyProfile =
+  | { kind: "ok"; label: string }
+  | { kind: "not_allowlisted" }
+  | { kind: "unknown" };
 const TOKEN_EXPIRY_MARGIN_MS = 60_000;
 
 /**
  * Manages the Spotify OAuth2 token lifecycle.
  *
- * The refresh token is provisioned once through the authorization-code flow
- * (see `SpotifyAuthController`) and then stored server-side as
- * `SPOTIFY_REFRESH_TOKEN`. At runtime only the silent refresh grant is used.
+ * Each user's refresh token comes from "Connect Spotify"
+ * (`SpotifyConnectController`) and is stored in their connection; at runtime
+ * only the silent refresh grant is used, keyed by user.
  */
 @Injectable()
 export class SpotifyAuthService {
@@ -58,7 +75,7 @@ export class SpotifyAuthService {
   }
 
   /**
-   * Builds the Spotify authorization URL used for one-time provisioning.
+   * Builds the Spotify consent URL for a user's connect flow.
    */
   public buildAuthorizeUrl(state: string): string {
     const params = new URLSearchParams({
@@ -75,7 +92,9 @@ export class SpotifyAuthService {
   /**
    * Exchanges an authorization code for a long-lived refresh token.
    */
-  public async exchangeCode(code: string): Promise<{ refreshToken: string }> {
+  public async exchangeCode(
+    code: string,
+  ): Promise<{ refreshToken: string; accessToken: string }> {
     const body = new URLSearchParams({
       grant_type: "authorization_code",
       code,
@@ -90,7 +109,28 @@ export class SpotifyAuthService {
     }
 
     this.logger.log("Spotify authorization code exchanged successfully.");
-    return { refreshToken: tokens.refresh_token };
+    return {
+      refreshToken: tokens.refresh_token,
+      accessToken: tokens.access_token,
+    };
+  }
+
+  /**
+   * The account's display name. In development mode Spotify answers 403 for
+   * accounts missing from the app's Users Management list.
+   */
+  public async fetchProfile(accessToken: string): Promise<SpotifyProfile> {
+    const response = await fetch(`${API_BASE_URL}/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (response.status === 403) return { kind: "not_allowlisted" };
+    if (!response.ok) return { kind: "unknown" };
+    const me = (await response.json()) as {
+      display_name?: string | null;
+      id?: string;
+    };
+    const label = me.display_name || me.id;
+    return label ? { kind: "ok", label } : { kind: "unknown" };
   }
 
   /**
@@ -140,9 +180,15 @@ export class SpotifyAuthService {
     try {
       tokens = await this.requestToken(body);
     } catch (err) {
-      await this.credentials
-        .markError(userId, "spotify", "Spotify refused the saved login.")
-        .catch(() => undefined);
+      if (err instanceof SpotifyTokenError && err.invalidGrant) {
+        await this.credentials
+          .markError(
+            userId,
+            "spotify",
+            "Spotify sign-in expired or was revoked. Reconnect Spotify.",
+          )
+          .catch(() => undefined);
+      }
       throw err;
     }
     this.accessTokens.set(userId, {
@@ -206,8 +252,9 @@ export class SpotifyAuthService {
       this.logger.error(
         `Spotify token request failed with status ${response.status}: ${details}`,
       );
-      throw new Error(
-        `Spotify token request failed with status ${response.status}.`,
+      throw new SpotifyTokenError(
+        response.status,
+        response.status === 400 && details.includes("invalid_grant"),
       );
     }
 
