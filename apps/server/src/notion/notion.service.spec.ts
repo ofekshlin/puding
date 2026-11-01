@@ -3,6 +3,7 @@ import { EnvCredentialStore } from "../credentials/env-credential-store";
 import { ConnectionEvents } from "../credentials/connection-events";
 import { Test, TestingModule } from "@nestjs/testing";
 import { NotionService } from "./notion.service";
+import { NotionTokenManager } from "./notion-token-manager";
 import { ConfigService } from "../config/config.service";
 
 describe("NotionService", () => {
@@ -33,6 +34,7 @@ describe("NotionService", () => {
         },
         { provide: CredentialStore, useValue: mockCredentials },
         ConnectionEvents,
+        NotionTokenManager,
       ],
     }).compile();
 
@@ -228,9 +230,12 @@ describe("NotionService", () => {
 
   it("should resolve real page title 'Ideas' using Notion API", async () => {
     const realConfigService = new ConfigService();
+    const envStore = new EnvCredentialStore(realConfigService);
+    const events = new ConnectionEvents();
     const realService = new NotionService(
-      new EnvCredentialStore(realConfigService),
-      new ConnectionEvents(),
+      envStore,
+      events,
+      new NotionTokenManager(realConfigService, envStore),
     );
 
     // List all shared pages first to debug
