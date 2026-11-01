@@ -65,4 +65,7 @@ export abstract class UserDirectory {
     id: string,
     note: string | null,
   ): Promise<PudingUser | null>;
+
+  /** Deletes the account and (by cascade) its connections; false when not stored. */
+  abstract delete(id: string): Promise<boolean>;
 }

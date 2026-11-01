@@ -321,6 +321,26 @@ describe("ProxyGateway (Unit)", () => {
     expect(theirs.close).not.toHaveBeenCalled();
   });
 
+  it("tells a deleted account's sockets to sign out, then closes them", async () => {
+    jest.useFakeTimers();
+    const socket = new EventEmitter() as any;
+    socket.readyState = WebSocket.OPEN;
+    socket.send = jest.fn();
+    socket.close = jest.fn();
+    await gateway.handleConnection(socket, {
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage);
+
+    gateway.closeDeletedUser(LOCAL_USER.id);
+    jest.runAllTimers();
+    jest.useRealTimers();
+
+    expect(socket.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: "account_deleted" }),
+    );
+    expect(socket.close).toHaveBeenCalled();
+  });
+
   describe("per-user sockets", () => {
     const mockReq = {
       socket: { remoteAddress: "127.0.0.1" },

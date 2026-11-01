@@ -53,6 +53,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({
           {user.name && <strong>{user.name}</strong>}
           {user.email && <span className="user-menu-email">{user.email}</span>}
         </div>
+        <a href="/settings" className="btn btn-secondary btn-sm">
+          Settings
+        </a>
         {isAdmin && (
           <a href="/admin" className="btn btn-secondary btn-sm admin-link">
             Admin

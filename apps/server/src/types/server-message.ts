@@ -32,4 +32,8 @@ export type ServerMessage =
       /** Sent before closing: the user already has `limit` sockets open. */
       type: "too_many_sessions";
       limit: number;
+    }
+  | {
+      /** The account was deleted; the client signs out and does not reconnect. */
+      type: "account_deleted";
     };
