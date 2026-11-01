@@ -15,9 +15,7 @@ const SpotifyCard: React.FC<IntegrationCardProps> = ({ data }) => (
     <div className="card-header">
       <span className="card-icon">🎵</span>
       <span className="card-title">Spotify Playback</span>
-      {data.action && (
-        <span className="badge spotify-badge">{data.action}</span>
-      )}
+      {data.action && <span className="badge spotify-badge">{data.action}</span>}
     </div>
     <div className="card-body spotify-body">
       {data.albumArt && (
